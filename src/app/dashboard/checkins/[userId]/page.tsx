@@ -1,5 +1,6 @@
 // src/app/dashboard/checkins/[userId]/page.tsx
 import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Calendar, Clock, Map, Image as ImageIcon, FileText, Smartphone, Users, User, Building2 } from 'lucide-react';
 import ImageGallery from '@/components/ImageGallery';
@@ -7,6 +8,8 @@ import UserCheckInFilter from '@/components/UserCheckInFilter';
 import ExpandableNote from '@/components/ExpandableNote';
 import EditCheckInModal from '@/components/EditCheckInModal';
 import ExportExcelButton from '@/components/ExportExcelButton';
+import CheckInMap from '@/components/CheckInMap';
+import CheckInInfiniteList from '@/components/CheckInInfiniteList';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +23,20 @@ export default async function UserCheckInHistoryPage({
   const resolvedParams = await Promise.resolve(params);
   const userId = resolvedParams.userId;
   const resolvedSearchParams = await Promise.resolve(searchParams);
+
+  // ดึงอีเมลจากระบบ Auth ของ Supabase โดยตรง
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  const { data: authData } = await supabaseAdmin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000
+  });
+  const authUsers = authData?.users || [];
+  const userEmailMap: Record<string, string> = {};
+  authUsers.forEach(u => {
+    userEmailMap[u.id] = u.email || '';
+  });
 
   let startIso = '';
   let endIso = '';
@@ -57,7 +74,7 @@ export default async function UserCheckInHistoryPage({
     .select(`
       id, created_at, audit_log, phone, customer_name, source, user_id,
       companies (name),
-      profiles (full_name),
+      profiles (full_name, email),
       teams (team_name), 
       order_items (
         id, 
@@ -105,6 +122,7 @@ export default async function UserCheckInHistoryPage({
     }
 
     let dbSalesName = '';
+    let dbSalesEmail = userEmailMap[order.user_id] || '';
     if (Array.isArray(order.profiles)) {
       dbSalesName = order.profiles[0]?.full_name || '';
     } else if (order.profiles) {
@@ -200,6 +218,7 @@ export default async function UserCheckInHistoryPage({
       ordersList.push({
         orderId: order.id,
         salesName: dbSalesName || 'ไม่ระบุเซลส์', 
+        salesEmail: dbSalesEmail || '',
         teamName: dbTeamName || 'ไม่มีทีม', 
         customerName: order.customer_name || 'ไม่ระบุชื่อลูกค้า',
         companyName: dbCompanyName || 'ลูกค้าทั่วไป (B2C)', 
@@ -242,35 +261,35 @@ export default async function UserCheckInHistoryPage({
           </div>
         )}
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-lg shadow-sm border border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-2xl shadow-md shrink-0">
+            <div className="w-14 h-14 rounded-md bg-slate-700 text-white flex items-center justify-center font-bold text-2xl shadow-sm shrink-0">
               {userId === 'all' ? <Users size={24} /> : userName.charAt(0)}
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
                 ประวัติลงพื้นที่
               </h1>
-              <p className="text-slate-500 text-sm mt-1">พนักงาน: <span className="font-semibold text-indigo-600">{userName}</span></p>
+              <p className="text-slate-500 text-sm mt-1">พนักงาน: <span className="font-semibold text-slate-700">{userName}</span></p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-100 overflow-x-auto shrink-0">
+          <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200 overflow-x-auto shrink-0">
             <div className="flex flex-col items-center px-4 border-r border-slate-200 min-w-[80px]">
-              <span className="text-[10px] uppercase font-bold text-slate-400">ออเดอร์</span>
-              <span className="text-lg font-black text-slate-700">{ordersList.length}</span>
+              <span className="text-[10px] uppercase font-bold text-slate-500">ออเดอร์</span>
+              <span className="text-lg font-black text-slate-800">{ordersList.length}</span>
             </div>
             <div className="flex flex-col items-center px-4 border-r border-slate-200 min-w-[80px]">
-              <span className="text-[10px] uppercase font-bold text-slate-400">โปรเจกต์</span>
-              <span className="text-lg font-black text-slate-700">{totalProjectsCount}</span>
+              <span className="text-[10px] uppercase font-bold text-slate-500">โปรเจกต์</span>
+              <span className="text-lg font-black text-slate-800">{totalProjectsCount}</span>
             </div>
             <div className="flex flex-col items-center px-4 border-r border-slate-200 min-w-[80px]">
-              <span className="text-[10px] uppercase font-bold text-indigo-400 flex items-center gap-1"><Smartphone size={10}/> App</span>
-              <span className="text-lg font-black text-indigo-600">{totalAppCount}</span>
+              <span className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-1"><Smartphone size={10}/> App</span>
+              <span className="text-lg font-black text-slate-800">{totalAppCount}</span>
             </div>
             <div className="flex flex-col items-center px-4 min-w-[80px]">
-              <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1"><FileText size={10}/> CSV</span>
-              <span className="text-lg font-black text-slate-500">{totalCsvCount}</span>
+              <span className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-1"><FileText size={10}/> CSV</span>
+              <span className="text-lg font-black text-slate-800">{totalCsvCount}</span>
             </div>
           </div>
         </div>
@@ -284,183 +303,8 @@ export default async function UserCheckInHistoryPage({
           <ExportExcelButton ordersData={ordersList} />
         </div>
 
-        <div className="space-y-6 mt-6">
-          {ordersList.length === 0 ? (
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-20 text-center flex flex-col items-center">
-              <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-5">
-                <MapPin size={48} className="text-slate-300" />
-              </div>
-              <p className="text-xl font-medium text-slate-500">ไม่พบข้อมูลประวัติของบริษัทนี้</p>
-            </div>
-          ) : (
-            ordersList.map((order, orderIdx) => (
-              <div key={order.orderId} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col transition-all relative">
-                
-                <div className="px-6 py-5 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`text-[10px] text-white font-black px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1 ${order.isCsv ? 'bg-slate-400' : 'bg-indigo-600'}`}>
-                        {order.isCsv ? <FileText size={12}/> : <Smartphone size={12}/>}
-                        ORDER #{order.orderId.substring(0, 8).toUpperCase()}
-                      </span>
-                      <span className="text-sm font-bold text-slate-800 bg-slate-100 px-3 py-1 rounded-lg">
-                        🏢 บริษัท: <span className="text-indigo-700 font-black">{order.companyName}</span>
-                      </span>
-                      {userId === 'all' && (
-                        <span className="text-sm font-bold text-slate-600 border border-slate-200 bg-white px-3 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
-                          <User size={14} className="text-indigo-400"/> เซลส์: <span className="text-indigo-600">{order.salesName}</span>
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-slate-500 font-medium flex flex-wrap items-center gap-4">
-                      <span className="flex items-center gap-1"><User size={14} className="text-slate-400"/> ผู้ติดต่อหน้างาน: {order.customerName}</span>
-                      <span className="flex items-center gap-1">📞 เบอร์โทร: {order.phone}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-start sm:items-end text-xs font-bold text-slate-400 gap-1 shrink-0">
-                    <span className="flex items-center gap-1.5"><Calendar size={14} className="text-indigo-400"/> {order.date}</span>
-                    <span className="flex items-center gap-1.5"><Clock size={14} className="text-amber-400"/> {order.time}</span>
-                  </div>
-                </div>
-
-                <div className="p-6 md:p-8 space-y-10">
-                  {order.projects.map((proj: any, pIdx: number) => {
-                    const hasStakeholders = proj.stakeholders.devAcc || proj.stakeholders.devCont || 
-                                            proj.stakeholders.archAcc || proj.stakeholders.archCont || 
-                                            proj.stakeholders.intAcc || proj.stakeholders.intCont || 
-                                            proj.stakeholders.contAcc || proj.stakeholders.contCont;
-
-                    return (
-                      <div key={proj.id} className={`grid grid-cols-1 xl:grid-cols-12 gap-8 ${pIdx > 0 ? 'pt-8 border-t border-slate-100' : ''}`}>
-                        
-                        <div className="col-span-1 xl:col-span-4 flex flex-col justify-start">
-                          <div className="flex items-start justify-between flex-wrap gap-2 mb-3">
-                            <div className="flex items-start gap-2.5">
-                              <span className="w-5 h-5 bg-slate-100 border border-slate-200 rounded-md font-black text-xs text-slate-600 flex items-center justify-center mt-1 shrink-0">
-                                {pIdx + 1}
-                              </span>
-                              <div>
-                                <h3 className="text-lg font-bold text-slate-800 leading-tight">{proj.projectName}</h3>
-                                <div className="text-xs font-bold text-slate-400 mt-1 space-x-3">
-                                  <span>🏷️ <span className="text-sky-600">{proj.categoryName}</span></span>
-                                  <span>📐 {proj.projectType}</span>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {!order.isCsv && userId !== 'all' && (
-                              <EditCheckInModal 
-                                orderItemId={proj.orderItemId}
-                                projectId={proj.projectId}
-                                currentCategoryId={proj.categoryId}
-                                currentArea={proj.area}
-                                userId={userId}
-                                categories={categories}
-                              />
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center gap-2.5 text-slate-700 font-medium text-[15px] mb-5">
-                            <div className="bg-emerald-50 p-1.5 rounded-md border border-emerald-100 text-emerald-600"><Map size={16} /></div> 
-                            พื้นที่: <span className="font-black text-emerald-600 text-base">{Number(proj.area).toLocaleString()}</span> ตร.ม.
-                          </div>
-
-                          {hasStakeholders && (
-                            <div className="mb-5 bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100">
-                              <div className="text-[11px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-1.5">
-                                <Users size={14} className="text-indigo-400" /> ผู้เกี่ยวข้อง
-                              </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                {(proj.stakeholders.devAcc || proj.stakeholders.devCont) && (
-                                  <div className="flex flex-col bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase">Developer</span>
-                                    {proj.stakeholders.devCont && <span className="text-xs text-slate-700 font-bold truncate" title={proj.stakeholders.devCont}>{proj.stakeholders.devCont}</span>}
-                                    {proj.stakeholders.devAcc && <span className="text-[10px] text-slate-500 truncate">{proj.stakeholders.devAcc}</span>}
-                                  </div>
-                                )}
-                                {(proj.stakeholders.archAcc || proj.stakeholders.archCont) && (
-                                  <div className="flex flex-col bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase">Architect</span>
-                                    {proj.stakeholders.archCont && <span className="text-xs text-slate-700 font-bold truncate" title={proj.stakeholders.archCont}>{proj.stakeholders.archCont}</span>}
-                                    {proj.stakeholders.archAcc && <span className="text-[10px] text-slate-500 truncate">{proj.stakeholders.archAcc}</span>}
-                                  </div>
-                                )}
-                                {(proj.stakeholders.intAcc || proj.stakeholders.intCont) && (
-                                  <div className="flex flex-col bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase">Interior</span>
-                                    {proj.stakeholders.intCont && <span className="text-xs text-slate-700 font-bold truncate" title={proj.stakeholders.intCont}>{proj.stakeholders.intCont}</span>}
-                                    {proj.stakeholders.intAcc && <span className="text-[10px] text-slate-500 truncate">{proj.stakeholders.intAcc}</span>}
-                                  </div>
-                                )}
-                                {(proj.stakeholders.contAcc || proj.stakeholders.contCont) && (
-                                  <div className="flex flex-col bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase">Contractor</span>
-                                    {proj.stakeholders.contCont && <span className="text-xs text-slate-700 font-bold truncate" title={proj.stakeholders.contCont}>{proj.stakeholders.contCont}</span>}
-                                    {proj.stakeholders.contAcc && <span className="text-[10px] text-slate-500 truncate">{proj.stakeholders.contAcc}</span>}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {proj.note && proj.note !== '-' && (
-                            <ExpandableNote note={proj.note} />
-                          )}
-
-                          <div className="mt-auto pt-3 flex flex-col gap-2">
-                            {proj.lat && proj.lng ? (
-                              <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-100 w-fit flex items-center gap-1">
-                                <MapPin size={12}/> พิกัด: {proj.lat.toFixed(5)}, {proj.lng.toFixed(5)}
-                              </span>
-                            ) : (
-                              <span className="text-[11px] font-medium text-slate-400">ไม่มีพิกัดตำแหน่ง</span>
-                            )}
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Device: {proj.device}</span>
-                          </div>
-                        </div>
-
-                        <div className="col-span-1 xl:col-span-5">
-                          <div className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1.5">
-                            <Map size={14} /> ตำแหน่งที่ตั้ง
-                          </div>
-                          {order.isCsv ? (
-                            <div className="w-full h-48 xl:h-full min-h-[220px] rounded-2xl bg-slate-50 border-[2px] border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
-                              <FileText size={32} className="mb-2 text-slate-300" />
-                              <span className="text-sm font-bold text-slate-500">ข้อมูลนำเข้าจากไฟล์</span>
-                            </div>
-                          ) : proj.lat && proj.lng ? (
-                            <div className="w-full h-48 xl:h-full min-h-[220px] rounded-2xl overflow-hidden border border-slate-200 shadow-sm relative">
-                              <iframe
-                                width="100%" height="100%" frameBorder="0" style={{ border: 0 }}
-                                src={`https://maps.google.com/maps?q=${proj.lat},${proj.lng}&hl=th&z=15&output=embed`}
-                                className="absolute inset-0"
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-full h-48 xl:h-full min-h-[220px] rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center text-slate-400">
-                              <MapPin size={32} className="mb-2 opacity-40" />
-                              <span className="text-xs font-medium">ไม่มีแผนที่</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="col-span-1 xl:col-span-3 flex flex-col overflow-hidden">
-                          <div className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1.5">
-                            <ImageIcon size={14} /> รูปภาพหน้างาน ({proj.images.length})
-                          </div>
-                          <div className="flex-1 min-h-[220px] bg-slate-50 rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                            <ImageGallery images={proj.images} />
-                          </div>
-                        </div>
-
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
-          )}
+        <div className="mt-6">
+          <CheckInInfiniteList ordersList={ordersList} userId={userId} categories={categories} />
         </div>
       </div>
     </main>

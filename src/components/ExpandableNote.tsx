@@ -6,8 +6,9 @@ import { FileText, ChevronDown, ChevronUp } from 'lucide-react';
 export default function ExpandableNote({ note }: { note: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // ถ้าข้อความสั้นกว่า 80 ตัวอักษร ก็ไม่ต้องโชว์ปุ่มดูเพิ่มเติม
-  const isLongText = note.length > 80; 
+  // ถ้าข้อความสั้นกว่า 100 ตัวอักษร ก็ไม่ต้องโชว์ปุ่มดูเพิ่มเติม
+  const isLongText = note.length > 100; 
+  const displayText = (!isExpanded && isLongText) ? note.slice(0, 100) + '...' : note;
 
   return (
     <div className="mb-4 bg-yellow-50 border border-yellow-200 p-3 rounded-lg text-sm transition-all duration-300">
@@ -15,9 +16,8 @@ export default function ExpandableNote({ note }: { note: string }) {
         <FileText size={14} /> หมายเหตุ (Note):
       </p>
       
-      {/* ใช้ line-clamp-2 เพื่อตัดข้อความให้เหลือแค่ 2 บรรทัดถ้ายังไม่ได้กดขยาย */}
-      <p className={`text-yellow-700 whitespace-pre-wrap leading-relaxed ${!isExpanded ? 'line-clamp-2' : ''}`}>
-        {note}
+      <p className="text-yellow-700 whitespace-pre-wrap leading-relaxed">
+        {displayText}
       </p>
       
       {isLongText && (
