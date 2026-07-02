@@ -27,10 +27,11 @@ const formatLocal = (d: Date) => {
   };
   const now = new Date();
 
-  // ✅ แก้เป็นแบบนี้ครับ
   const todayStr = formatLocal(now);
   const thirtyDaysAgoDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgoStr = formatLocal(thirtyDaysAgoDate);
+  const ninetyDaysAgoDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const ninetyDaysAgoStr = formatLocal(ninetyDaysAgoDate);
   const firstDayOfMonth = formatLocal(new Date(now.getFullYear(), now.getMonth(), 1));
   const lastDayOfMonth = formatLocal(new Date(now.getFullYear(), now.getMonth() + 1, 0));
   const allTimeStart = '2020-01-01';
@@ -52,6 +53,24 @@ const formatLocal = (d: Date) => {
   const [end, setEnd] = useState(urlEnd);
   const [minAreaLocal, setMinAreaLocal] = useState(currentMinArea);
   const [maxAreaLocal, setMaxAreaLocal] = useState(currentMaxArea);
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [tempStart, setTempStart] = useState(urlStart);
+  const [tempEnd, setTempEnd] = useState(urlEnd);
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
+  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+
+  useEffect(() => {
+    if (selectedMonths.length > 0) {
+      const minMonth = Math.min(...selectedMonths);
+      const maxMonth = Math.max(...selectedMonths);
+      
+      const startD = new Date(selectedYear, minMonth, 1);
+      const endD = new Date(selectedYear, maxMonth + 1, 0);
+      
+      setTempStart(formatLocal(startD));
+      setTempEnd(formatLocal(endD));
+    }
+  }, [selectedMonths, selectedYear]);
 
   useEffect(() => {
     setStart(urlStart);
@@ -63,18 +82,23 @@ const formatLocal = (d: Date) => {
   let activePreset = 'CUSTOM';
   if (!searchParams.get('start') && !searchParams.get('end')) {
     activePreset = '30DAYS';
+  } else if (urlStart === ninetyDaysAgoStr && urlEnd === todayStr) {
+    activePreset = '90DAYS';
   } else if (urlStart === firstDayOfMonth && urlEnd === lastDayOfMonth) {
     activePreset = 'THIS_MONTH';
   } else if (urlStart === allTimeStart) {
     activePreset = 'ALL_TIME';
   }
 
-  const applyPreset = (preset: '30DAYS' | 'THIS_MONTH' | 'ALL_TIME') => {
+  const applyPreset = (preset: '30DAYS' | '90DAYS' | 'THIS_MONTH' | 'ALL_TIME') => {
     const params = new URLSearchParams(searchParams.toString());
     
     if (preset === '30DAYS') {
       params.delete('start');
       params.delete('end');
+    } else if (preset === '90DAYS') {
+      params.set('start', ninetyDaysAgoStr);
+      params.set('end', todayStr);
     } else if (preset === 'THIS_MONTH') {
       params.set('start', firstDayOfMonth);
       params.set('end', lastDayOfMonth);
@@ -106,6 +130,34 @@ const formatLocal = (d: Date) => {
     startTransition(() => {
       router.push(`?${params.toString()}`);
     });
+  };
+
+  const openDateModal = () => {
+    setTempStart(start);
+    setTempEnd(end);
+    setSelectedMonths([]);
+    setShowDateModal(true);
+  };
+
+  const applyCustomDate = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (tempStart) params.set('start', tempStart); else params.delete('start');
+    if (tempEnd) params.set('end', tempEnd); else params.delete('end');
+    
+    startTransition(() => {
+      router.push(`?${params.toString()}`);
+    });
+    setStart(tempStart);
+    setEnd(tempEnd);
+    setShowDateModal(false);
+  };
+
+  const calculateDays = () => {
+    if (!tempStart || !tempEnd) return 0;
+    const s = new Date(tempStart);
+    const e = new Date(tempEnd);
+    const diffTime = Math.abs(e.getTime() - s.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
   };
 
   const applyAreaFilter = () => {
@@ -196,6 +248,13 @@ const formatLocal = (d: Date) => {
             <Clock size={14} /> 30 วัน
           </button>
           <button 
+            onClick={() => applyPreset('90DAYS')}
+            disabled={isPending}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${activePreset === '90DAYS' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'} disabled:opacity-50`}
+          >
+            <Clock size={14} /> 90 วัน
+          </button>
+          <button 
             onClick={() => applyPreset('THIS_MONTH')}
             disabled={isPending}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${activePreset === 'THIS_MONTH' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'} disabled:opacity-50`}
@@ -211,29 +270,15 @@ const formatLocal = (d: Date) => {
           </button>
         </div>
 
-        <div className={`flex items-center gap-1 bg-white border rounded-lg px-2 py-1.5 shadow-sm transition-colors ${activePreset === 'CUSTOM' ? 'border-indigo-400 ring-1 ring-indigo-100' : 'border-slate-200 hover:border-indigo-300'}`} title="หรือระบุช่วงเวลาที่ต้องการเอง">
+        <div 
+          onClick={openDateModal}
+          className={`flex items-center gap-2 bg-white border rounded-lg px-3 py-1.5 shadow-sm transition-colors cursor-pointer ${activePreset === 'CUSTOM' ? 'border-indigo-400 ring-1 ring-indigo-100' : 'border-slate-200 hover:border-indigo-300'} ${isPending ? 'opacity-50 pointer-events-none' : ''}`} 
+          title="หรือระบุช่วงเวลาที่ต้องการเอง"
+        >
           <Calendar size={14} className={activePreset === 'CUSTOM' ? "text-indigo-600" : "text-slate-400"} />
-          <input 
-            type="date" 
-            disabled={isPending}
-            className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer w-[110px] disabled:opacity-50" 
-            value={start} 
-            onChange={(e) => {
-              setStart(e.target.value);
-              applyDate('start', e.target.value);
-            }} 
-          />
-          <span className="text-slate-300">-</span>
-          <input 
-            type="date" 
-            disabled={isPending}
-            className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer w-[110px] disabled:opacity-50" 
-            value={end} 
-            onChange={(e) => {
-              setEnd(e.target.value);
-              applyDate('end', e.target.value);
-            }} 
-          />
+          <span className="text-xs font-semibold text-slate-700">{start}</span>
+          <span className="text-slate-400 text-xs">-</span>
+          <span className="text-xs font-semibold text-slate-700">{end}</span>
         </div>
 
         <div className="relative">
@@ -335,12 +380,100 @@ const formatLocal = (d: Date) => {
 
       {/* --- แถวที่ 2: ฟิลเตอร์ขนาดพื้นที่ (เพิ่ม Badge ตัวเลข) --- */}
       <div className="flex flex-wrap items-center gap-3 w-full">
-    
-        
-       
-
-       
       </div>
+
+      {/* --- Modal เลือกวันที่ --- */}
+      {showDateModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-[320px] transform transition-all scale-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-800">เลือกช่วงเวลา</h3>
+              <button onClick={() => setShowDateModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex items-center justify-between mb-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
+              <button 
+                onClick={() => setSelectedYear(y => y - 1)}
+                className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors"
+              >
+                <ChevronDown size={16} className="rotate-90" />
+              </button>
+              <span className="font-bold text-slate-700 text-sm">ปี ค.ศ. {selectedYear}</span>
+              <button 
+                onClick={() => setSelectedYear(y => y + 1)}
+                className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors"
+              >
+                <ChevronDown size={16} className="-rotate-90" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'].map((m, i) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setSelectedMonths(prev => 
+                      prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
+                    );
+                  }}
+                  className={`py-1.5 text-xs font-semibold rounded-md transition-all ${selectedMonths.includes(i) ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-4 mb-5">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">วันเริ่มต้น (ปรับเอง)</label>
+                <input 
+                  type="date" 
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition-shadow"
+                  value={tempStart}
+                  onChange={(e) => {
+                    setTempStart(e.target.value);
+                    setSelectedMonths([]);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">วันสิ้นสุด (ปรับเอง)</label>
+                <input 
+                  type="date" 
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition-shadow"
+                  value={tempEnd}
+                  onChange={(e) => {
+                    setTempEnd(e.target.value);
+                    setSelectedMonths([]);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="bg-indigo-50 text-indigo-700 text-sm font-semibold px-3 py-2.5 rounded-lg mb-6 text-center border border-indigo-100 flex items-center justify-center gap-2">
+              <CalendarDays size={16} />
+              จำนวนที่เลือก: {calculateDays()} วัน
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button 
+                onClick={() => setShowDateModal(false)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button 
+                onClick={applyCustomDate}
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
