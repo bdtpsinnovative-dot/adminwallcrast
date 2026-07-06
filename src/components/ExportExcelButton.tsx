@@ -81,6 +81,27 @@ export default function ExportExcelButton({ ordersData }: ExportButtonProps) {
           return company || contact || '';
         };
 
+        const mapProjectType = (type: string, area: number) => {
+          if (!type || type === '-') return '';
+          const t = type.trim();
+          
+          if (t.includes('Private Residence') || t.includes('Private Resident')) return 'Private Residence';
+          if (t.includes('Hotel')) return 'Hotel';
+          if (t.includes('Shopping Mall')) return 'Community Mall';
+          if (t.includes('Office Building')) return 'Office';
+          if (t.includes('Hospital')) return 'Hospital';
+          if (t.includes('อื่นๆ') || t.includes('Other')) return 'Other';
+          if (t.includes('Shop&Restaurant') || t.includes('Shop & Restaurant')) return 'Commercial';
+          if (t.includes('Resort/Villa') || t.includes('Resort / Villa')) return 'Resort/Villa';
+          if (t.includes('Housing Estate')) return 'Housing Estate';
+          if (t.includes('Condominium')) {
+            return area >= 500 ? 'High Rise' : 'Low Rise';
+          }
+          
+          const cleaned = t.replace(/\s*\(.*?\)/g, '');
+          return cleaned === '-' ? '' : cleaned;
+        };
+
         const availableContacts = [
           proj.stakeholders.devCont,
           proj.stakeholders.archCont,
@@ -111,7 +132,7 @@ export default function ExportExcelButton({ ordersData }: ExportButtonProps) {
           'Contact': order.customerName || '',
           'Phone': randomPhone,
           'Pipeline': pipeline, 
-          'Project Type': proj.projectType || '', 
+          'Project Type': mapProjectType(proj.projectType, Number(proj.area) || 0), 
           'Salesperson': order.salesEmail || order.salesName || '',
           'Product Group': productGroup, 
           'Architecture': fmtStakeholder(proj.stakeholders.archAcc, proj.stakeholders.archCont),

@@ -16,6 +16,7 @@ interface Props {
   customerTypes: { id: string; name: string }[]; 
   projectTypes: { id: string; name: string }[];
   productCategories: { id: string; name: string }[];
+  onRefresh?: () => void;
 }
 
 function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategories, onRefresh }: any) {
@@ -299,7 +300,7 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
   );
 }
 
-export default function VipPipelineTable({ projects, profilesMap, salesStats, customerTypes = [], projectTypes = [], productCategories = [] }: Props) {
+export default function VipPipelineTable({ projects, profilesMap, salesStats, customerTypes = [], projectTypes = [], productCategories = [], onRefresh }: Props) {
   const router = useRouter();
   
   const [isPending, startTransition] = useTransition();
@@ -335,7 +336,11 @@ export default function VipPipelineTable({ projects, profilesMap, salesStats, cu
       const newVipStatus = !currentIsVip;
       const { error } = await supabase.from('order_item_projects').update({ is_important: newVipStatus }).eq('id', projId);
       if (error) throw error;
-      router.refresh();
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        router.refresh();
+      }
     } catch (error) {
       console.error("Error updating VIP status:", error);
       alert("เกิดข้อผิดพลาดในการอัปเดตดาวครับ");
@@ -685,7 +690,13 @@ export default function VipPipelineTable({ projects, profilesMap, salesStats, cu
         onClose={() => setActiveEditItem(null)} 
         projectTypes={projectTypes} 
         productCategories={productCategories}
-        onRefresh={() => router.refresh()}
+        onRefresh={() => {
+          if (onRefresh) {
+            onRefresh();
+          } else {
+            router.refresh();
+          }
+        }}
       />
     </>
   );
