@@ -6,7 +6,7 @@ import {
   Star, List, Map, ArrowDownWideNarrow, ArrowUpNarrowWide, 
   User, Target, Trophy, Maximize2, LayoutList, BarChart3, 
   CalendarDays, Smartphone, FileText,
-  Edit2, Check, X, Loader2, Save, Scaling
+  Edit2, Check, X, Loader2, Save, Scaling, Lock, Unlock
 } from 'lucide-react'; 
 
 interface Props {
@@ -31,9 +31,11 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
     projectTypeId: '',
     categoryId: '',
     queueLevel: '', 
-    projectYear: currentYearAD // 🌟 เปลี่ยนค่าตั้งต้นเป็น ค.ศ. ปัจจุบัน (เช่น 2026)
+    projectYear: currentYearAD,
+    salesNote: ''
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [isSalesNoteEditable, setIsSalesNoteEditable] = useState(false);
 
   useEffect(() => {
     if (isOpen && data) {
@@ -48,8 +50,10 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
         projectTypeId: data.proj.project_type_id || '',
         categoryId: data.item?.product_category_id || '',
         queueLevel: data.proj.queue_level || '', 
-        projectYear: dbYear || currentYearAD // 🌟 เซ็ตค่าปีตอนโหลดข้อมูล
+        projectYear: dbYear || currentYearAD,
+        salesNote: data.item?.note || ''
       });
+      setIsSalesNoteEditable(false);
     }
   }, [isOpen, data, currentYearAD]);
 
@@ -74,6 +78,11 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
     if ((oldData.note || '') !== newData.note) {
       const shortNote = newData.note.length > 20 ? newData.note.substring(0, 20) + '...' : newData.note;
       changes.push(`คอมเมนต์: "${shortNote}"`);
+    }
+
+    if ((oldData.salesNote || '') !== newData.salesNote) {
+      const shortSalesNote = newData.salesNote.length > 20 ? newData.salesNote.substring(0, 20) + '...' : newData.salesNote;
+      changes.push(`โน้ตจากเซลส์: "${shortSalesNote}"`);
     }
     
     return changes.length > 0 ? `อัปเดต: ${changes.join(', ')}` : `แอดมินอัปเดตข้อมูลโครงการ ${newData.projectName || 'ไม่ระบุชื่อ'} เรียบร้อยแล้ว`;
@@ -103,7 +112,8 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
       let itemUpdate = null;
       if (data.item?.id) {
         itemUpdate = supabase.from('order_items').update({ 
-          product_category_id: formData.categoryId || null 
+          product_category_id: formData.categoryId || null,
+          note: formData.salesNote.trim() || null
         }).eq('id', data.item.id);
       }
 
@@ -132,7 +142,8 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
               area: data.proj.area_sqm,
               queueLevel: data.proj.queue_level,
               projectYear: data.proj.project_year,
-              note: data.proj.project_note
+              note: data.proj.project_note,
+              salesNote: data.item?.note
             },
             formData
           );
@@ -279,6 +290,35 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
                 <option value="">- เลือกระบุ -</option>
                 {productCategories.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-sky-700 uppercase tracking-wide">โน้ตจากเซลส์</label>
+                <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                  {isSalesNoteEditable ? (
+                    <>
+                      <Unlock size={10} className="text-emerald-500" /> แก้ไขได้
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={10} className="text-slate-400" /> ดับเบิ้ลคลิกเพื่อแก้
+                    </>
+                  )}
+                </span>
+              </div>
+              <textarea 
+                value={formData.salesNote} 
+                onChange={(e) => setFormData({...formData, salesNote: e.target.value})} 
+                onDoubleClick={() => setIsSalesNoteEditable(true)}
+                readOnly={!isSalesNoteEditable}
+                className={`w-full border rounded-lg px-3 py-2.5 outline-none font-medium text-sm transition-all
+                  ${isSalesNoteEditable 
+                    ? 'border-sky-400 focus:ring-2 focus:ring-sky-100 bg-white text-slate-700 cursor-text' 
+                    : 'border-slate-200 bg-slate-50/80 text-slate-500 cursor-default select-text'
+                  } resize-none min-h-[175px]`} 
+                placeholder={isSalesNoteEditable ? "ระบุโน้ตจากเซลส์..." : "ไม่มีโน้ตจากเซลส์ (ดับเบิ้ลคลิกเพื่อแก้ไข)"} 
+                title={isSalesNoteEditable ? "" : "ดับเบิ้ลคลิกเพื่อเริ่มแก้ไข"}
+              />
             </div>
           </div>
 
