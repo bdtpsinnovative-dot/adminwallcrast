@@ -28,6 +28,12 @@ export default function ImageGalleryOriginalPage() {
   const [showOver1MBOnly, setShowOver1MBOnly] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
+  const [isAutoCompressing, setIsAutoCompressing] = useState(false);
+  const [compressProgress, setCompressProgress] = useState(0);
+  const [compressTotal, setCompressTotal] = useState(0);
+  const [compressLog, setCompressLog] = useState<string[]>([]);
+  const stopCompressionRef = useRef(false);
+
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   
@@ -93,6 +99,67 @@ export default function ImageGalleryOriginalPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
+  const handleAutoCompress = async () => {
+    if (!window.confirm(`คุณต้องการบีบอัดรูปภาพที่เกิน 1MB ทั้งหมด ${totalCount} รูปโดยอัตโนมัติใช่หรือไม่?\n(รูปเดิมจะโดนทับด้วยขนาดไฟล์ที่เล็กลง และ URL คงเดิม)`)) return;
+
+    setIsAutoCompressing(true);
+    setCompressProgress(0);
+    setCompressTotal(totalCount);
+    setCompressLog(['🚀 เริ่มต้นระบบบีบอัดรูปภาพอัตโนมัติ...', '----------------------------']);
+    stopCompressionRef.current = false;
+
+    let processed = 0;
+    const batchLimit = 5;
+
+    try {
+      while (processed < totalCount && !stopCompressionRef.current) {
+        setCompressLog(prev => [...prev, `⏳ กำลังบีบอัดรูปภาพชุดถัดไป (จำกัดครั้งละ ${batchLimit} รูป)...`]);
+
+        const response = await fetch(`/api/r2/compress-all?limit=${batchLimit}`, {
+          method: 'POST',
+        });
+
+        if (!response.ok) {
+          throw new Error('API request failed');
+        }
+
+        const data = await response.json();
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        const count = data.compressedCount ?? 0;
+        if (count === 0) {
+          setCompressLog(prev => [...prev, '✅ บีบอัดเสร็จสิ้น! ไม่มีรูปที่เกิน 1MB เหลืออยู่แล้ว']);
+          break;
+        }
+
+        processed += count;
+        setCompressProgress(processed);
+
+        const logLines = data.results.map((r: any) => 
+          `   • ${r.name}: ${formatSize(r.oldSize)} ➔ ${formatSize(r.newSize)} (ลดลง ${Math.round((1 - r.newSize/r.oldSize) * 100)}%)`
+        );
+        setCompressLog(prev => [...prev, ...logLines]);
+
+        fetchImages(false, true);
+
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      
+      if (stopCompressionRef.current) {
+        setCompressLog(prev => [...prev, '🛑 หยุดการบีบอัดรูปภาพโดยผู้ใช้งาน']);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setCompressLog(prev => [...prev, `❌ เกิดข้อผิดพลาด: ${err.message}`]);
+    } finally {
+      setIsAutoCompressing(false);
+      fetchImages(false, true);
+    }
+  };
+
   const handleDeleteImages = async (fileNames: string[]) => {
     if (!window.confirm(`คุณแน่ใจหรือไม่ที่จะลบรูปภาพ ${fileNames.length} รายการนี้?`)) return;
 
@@ -136,7 +203,7 @@ export default function ImageGalleryOriginalPage() {
     setUploadStatus('preview');
   };
 
-  // บีบอัดรูปและแปลงเป็น WebP โดยคุมขนาดไม่ให้เกิน 1MB และความกว้าง/ยาวสูงสุด 2048px (แต่ยังรักษาสัดส่วนเดิม)
+  // บีบอัดรูปและแปลงเป็น WebP โดยคุมขนาดไม่ให้เกิน 1MB (รักษาสัดส่วนและความกว้าง/ยาวเดิม 100%)
   const convertToWebP = async (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const img = new window.Image();
@@ -145,19 +212,8 @@ export default function ImageGalleryOriginalPage() {
 
       img.onload = async () => {
         const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        const MAX_SIZE = 2048; 
-
-        if (width > MAX_SIZE || height > MAX_SIZE) {
-          if (width > height) { 
-            height *= MAX_SIZE / width; 
-            width = MAX_SIZE; 
-          } else { 
-            width *= MAX_SIZE / height; 
-            height = MAX_SIZE; 
-          }
-        }
+        const width = img.width;
+        const height = img.height;
 
         canvas.width  = width;
         canvas.height = height;
@@ -262,7 +318,16 @@ export default function ImageGalleryOriginalPage() {
               <p className="text-sm text-slate-500 mt-0.5">อัปโหลดรูปอัตราส่วนเดิม แปลงเป็น WebP และบีบอัดไฟล์ไม่ให้เกิน 1MB (โฟลเดอร์ original)</p>
             </div>
           </div>
-          <div className="flex gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap gap-3 w-full md:w-auto">
+            {totalCount > 0 && showOver1MBOnly && (
+              <button 
+                onClick={handleAutoCompress}
+                disabled={isAutoCompressing}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50"
+              >
+                ⚡ บีบอัดรูปเกิน 1MB ทั้งหมด ({totalCount} รูป)
+              </button>
+            )}
             <Link 
               href="/manage-products" 
               className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 hover:text-emerald-600 bg-slate-50 hover:bg-emerald-50 rounded-lg transition-colors border border-slate-200"
@@ -510,6 +575,68 @@ export default function ImageGalleryOriginalPage() {
               )}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Auto Compress Progress Modal */}
+      {(isAutoCompressing || compressLog.length > 0) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50 shrink-0">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                ⚡ {isAutoCompressing ? 'กำลังบีบอัดรูปภาพอัตโนมัติ' : 'บีบอัดรูปภาพอัตโนมัติเสร็จสิ้น'}
+              </h2>
+              {!isAutoCompressing && (
+                <button 
+                  onClick={() => setCompressLog([])}
+                  className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+
+            <div className="p-6 flex-1 overflow-y-auto flex flex-col gap-4">
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm font-semibold text-slate-700">
+                  <span>ความคืบหน้า</span>
+                  <span>{compressProgress} / {compressTotal} รูป</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
+                  <div 
+                    className="bg-amber-500 h-full transition-all duration-500 rounded-full" 
+                    style={{ width: `${compressTotal > 0 ? (compressProgress / compressTotal) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Logs */}
+              <div className="flex-1 min-h-[250px] bg-slate-950 text-emerald-400 p-4 rounded-xl font-mono text-xs overflow-y-auto space-y-1.5 border border-slate-800 shadow-inner">
+                {compressLog.map((log, idx) => (
+                  <div key={idx} className="whitespace-pre-wrap">{log}</div>
+                ))}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+              {isAutoCompressing ? (
+                <button
+                  onClick={() => { stopCompressionRef.current = true; }}
+                  className="px-5 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-sm flex items-center gap-2"
+                >
+                  🛑 หยุดการทำงาน
+                </button>
+              ) : (
+                <button
+                  onClick={() => setCompressLog([])}
+                  className="px-6 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
+                >
+                  ปิดหน้าต่างนี้
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
