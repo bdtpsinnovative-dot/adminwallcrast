@@ -15,6 +15,7 @@ interface GalleryImage {
   name: string;
   url: string;
   updatedAt: number;
+  size?: number;
 }
 
 export default function ImageGalleryOriginalPage() {
@@ -24,6 +25,8 @@ export default function ImageGalleryOriginalPage() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [showOver1MBOnly, setShowOver1MBOnly] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -40,22 +43,24 @@ export default function ImageGalleryOriginalPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchImages(false); 
+    fetchImages(false, false); 
   }, []);
 
-  const fetchImages = async (isLoadMore = false) => {
+  const fetchImages = async (isLoadMore = false, over1MBValue?: boolean) => {
     if (isLoadMore) setIsLoadingMore(true);
     else { setIsLoading(true); setOffset(0); }
 
     const currentOffset = isLoadMore ? offset : 0;
+    const isOver1MB = over1MBValue !== undefined ? over1MBValue : showOver1MBOnly;
 
     try {
       // 🌟 แก้ไขจุดที่ 1: เติม &t=${Date.now()} เข้าไปเพื่อล้าง Cache บังคับให้ดึงรูปใหม่ล่าสุดมาโชว์อันดับแรกเสมอ
-      const response = await fetch(`/api/r2?folder=${TARGET_FOLDER}&limit=${PAGE_SIZE}&offset=${currentOffset}&t=${Date.now()}`);
+      const response = await fetch(`/api/r2?folder=${TARGET_FOLDER}&limit=${PAGE_SIZE}&offset=${currentOffset}&over1MB=${isOver1MB}&t=${Date.now()}`);
       if (!response.ok) throw new Error('Failed to fetch images');
       
       const data = await response.json();
       const imageList = data.images;
+      setTotalCount(data.totalCount || 0);
 
       if (imageList.length < PAGE_SIZE) setHasMore(false);
       else setHasMore(true);
@@ -71,6 +76,21 @@ export default function ImageGalleryOriginalPage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
+  };
+
+  const handleToggleOver1MB = (val: boolean) => {
+    setShowOver1MBOnly(val);
+    fetchImages(false, val);
+  };
+
+  const formatSize = (bytes?: number) => {
+    if (bytes === undefined || bytes === null) return '-';
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = 2;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
   const handleDeleteImages = async (fileNames: string[]) => {
@@ -116,34 +136,53 @@ export default function ImageGalleryOriginalPage() {
     setUploadStatus('preview');
   };
 
-  // แปลงเป็น WebP คุณภาพเต็ม 100% — ไม่ลด size ไม่ลด resolution ไม่ลด quality
+  // บีบอัดรูปและแปลงเป็น WebP โดยคุมขนาดไม่ให้เกิน 1MB และความกว้าง/ยาวสูงสุด 2048px (แต่ยังรักษาสัดส่วนเดิม)
   const convertToWebP = async (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const img = new window.Image();
       const objectUrl = URL.createObjectURL(file);
       img.src = objectUrl;
 
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement('canvas');
-        // คงขนาดต้นฉบับไว้ทั้งหมด
-        canvas.width  = img.width;
-        canvas.height = img.height;
+        let width = img.width;
+        let height = img.height;
+        const MAX_SIZE = 2048; 
+
+        if (width > MAX_SIZE || height > MAX_SIZE) {
+          if (width > height) { 
+            height *= MAX_SIZE / width; 
+            width = MAX_SIZE; 
+          } else { 
+            width *= MAX_SIZE / height; 
+            height = MAX_SIZE; 
+          }
+        }
+
+        canvas.width  = width;
+        canvas.height = height;
 
         const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Cannot get canvas context'));
+        if (!ctx) {
+          URL.revokeObjectURL(objectUrl);
+          return reject(new Error('Cannot get canvas context'));
+        }
 
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, width, height);
         URL.revokeObjectURL(objectUrl);
 
-        // quality = 1.0 = คุณภาพสูงสุด
-        canvas.toBlob(
-          (blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error('WebP conversion failed'));
-          },
-          'image/webp',
-          1.0
-        );
+        let quality = 0.85;
+        let blob: Blob | null = null;
+        const tryCompress = async (q: number): Promise<Blob> => 
+          new Promise((r) => canvas.toBlob((b) => r(b!), 'image/webp', q));
+
+        do {
+          blob = await tryCompress(quality);
+          if (blob.size > 1024 * 1024) quality -= 0.1;
+          else break;
+        } while (quality > 0.1);
+
+        resolve(blob);
       };
 
       img.onerror = () => {
@@ -220,7 +259,7 @@ export default function ImageGalleryOriginalPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-800">รูปต้นฉบับ (Original Aspect)</h1>
-              <p className="text-sm text-slate-500 mt-0.5">อัปโหลดรูปคุณภาพเต็ม 100% แปลงเป็น WebP รักษาขนาดต้นฉบับ (โฟลเดอร์ original)</p>
+              <p className="text-sm text-slate-500 mt-0.5">อัปโหลดรูปอัตราส่วนเดิม แปลงเป็น WebP และบีบอัดไฟล์ไม่ให้เกิน 1MB (โฟลเดอร์ original)</p>
             </div>
           </div>
           <div className="flex gap-3 w-full md:w-auto">
@@ -264,6 +303,27 @@ export default function ImageGalleryOriginalPage() {
         )}
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+            <div className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span>รายการรูปภาพทั้งหมด</span>
+              <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${
+                showOver1MBOnly ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {showOver1MBOnly ? `เกิน 1MB: ${totalCount} รูป` : `ทั้งหมด: ${totalCount} รูป`}
+              </span>
+            </div>
+            <button
+              onClick={() => handleToggleOver1MB(!showOver1MBOnly)}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg border transition-all shadow-sm ${
+                showOver1MBOnly 
+                  ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100' 
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              ⚠️ {showOver1MBOnly ? 'แสดงรูปภาพทั้งหมด' : 'แสดงเฉพาะรูปที่เกิน 1MB'}
+            </button>
+          </div>
+
           {isLoading ? (
             <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-3">
               <Loader2 className="animate-spin text-emerald-500" size={32} />
@@ -324,6 +384,14 @@ export default function ImageGalleryOriginalPage() {
                           loading="lazy" 
                           className={`max-w-full max-h-full object-contain transition-transform duration-500 ${isSelected ? 'scale-95' : 'group-hover:scale-105'}`}
                         />
+                        {/* Size Badge */}
+                        <span className={`absolute bottom-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded shadow-sm border ${
+                          img.size && img.size > 1024 * 1024 
+                            ? 'bg-rose-50 border-rose-100 text-rose-600' 
+                            : 'bg-slate-900/60 border-transparent text-white'
+                        }`}>
+                          {formatSize(img.size)}
+                        </span>
                       </div>
 
                       <div className="p-3 border-t border-slate-100 flex items-center justify-between gap-2 bg-white mt-auto">
@@ -434,7 +502,7 @@ export default function ImageGalleryOriginalPage() {
                   <Loader2 className="animate-spin text-emerald-600" size={40} />
                   <div>
                     <p className="font-semibold text-slate-700">
-                      {uploadStatus === 'compressing' ? 'กำลังแปลงเป็น WebP คุณภาพสูง...' : 'กำลังอัปโหลดเข้าโฟลเดอร์ original...'}
+                      {uploadStatus === 'compressing' ? 'กำลังบีบอัดภาพ (WebP)...' : 'กำลังอัปโหลดเข้าโฟลเดอร์ original...'}
                     </p>
                     <p className="text-xs text-slate-500 mt-1">กรุณารอสักครู่ ห้ามปิดหน้าต่างนี้</p>
                   </div>

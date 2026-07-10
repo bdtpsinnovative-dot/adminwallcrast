@@ -20,6 +20,7 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '40');
     const offset = parseInt(searchParams.get('offset') || '0');
     const folder = searchParams.get('folder') || 'master_assets'; 
+    const over1MB = searchParams.get('over1MB') === 'true';
 
     // 🌟 ระบุ Type ให้ชัดเจนเพื่อป้องกัน Build Error
     let allFiles: _Object[] = []; 
@@ -45,6 +46,11 @@ export async function GET(request: Request) {
     }
 
     let files = allFiles.filter(file => file.Key !== `${folder}/`);
+    
+    if (over1MB) {
+      files = files.filter(file => (file.Size ?? 0) > 1024 * 1024);
+    }
+
     files.sort((a, b) => (b.LastModified?.getTime() || 0) - (a.LastModified?.getTime() || 0));
 
     const paginatedFiles = files.slice(offset, offset + limit);
@@ -54,7 +60,8 @@ export async function GET(request: Request) {
       return {
         name: cleanName,
         url: `${PUBLIC_URL}/${file.Key}`,
-        updatedAt: file.LastModified?.getTime() || Date.now()
+        updatedAt: file.LastModified?.getTime() || Date.now(),
+        size: file.Size ?? 0
       };
     });
 
