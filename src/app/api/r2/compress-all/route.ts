@@ -26,12 +26,12 @@ export async function POST(request: Request) {
     let continuationToken: string | undefined = undefined;
 
     while (isTruncated) {
-      const command = new ListObjectsV2Command({
+      const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
         Bucket: BUCKET_NAME,
         Prefix: `${TARGET_FOLDER}/`,
         ContinuationToken: continuationToken,
       });
-      const response = await s3Client.send(command);
+      const response = await s3Client.send(listCommand);
       if (response.Contents) {
         allFiles.push(...response.Contents);
       }

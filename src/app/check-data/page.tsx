@@ -7,6 +7,48 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
+// --- ฟังก์ชันจัดกลุ่มสีสำหรับข้อมูลที่ซ้ำกัน ---
+const getDuplicateGroupColor = (row: any, allRows: any[]) => {
+  const colors = [
+    "bg-rose-50 hover:bg-rose-100/80 border-rose-200 text-rose-950",
+    "bg-amber-50 hover:bg-amber-100/80 border-amber-200 text-amber-950",
+    "bg-emerald-50 hover:bg-emerald-100/80 border-emerald-200 text-emerald-950",
+    "bg-indigo-50 hover:bg-indigo-100/80 border-indigo-200 text-indigo-950",
+    "bg-violet-50 hover:bg-violet-100/80 border-violet-200 text-violet-950",
+    "bg-sky-50 hover:bg-sky-100/80 border-sky-200 text-sky-950",
+    "bg-teal-50 hover:bg-teal-100/80 border-teal-200 text-teal-950",
+    "bg-pink-50 hover:bg-pink-100/80 border-pink-200 text-pink-950"
+  ];
+  
+  const duplicates = allRows.filter((rowB) => {
+    const timeA = new Date(row.created_at).getTime();
+    const timeB = new Date(rowB.created_at).getTime();
+    const timeDiff = Math.abs(timeA - timeB);
+    
+    return (
+      row.sales_id === rowB.sales_id &&
+      timeDiff <= 60000 &&
+      row.product_category_id === rowB.product_category_id &&
+      String(row.note || '').trim() === String(rowB.note || '').trim() &&
+      String(row.customer_name || '').trim() === String(rowB.customer_name || '').trim() &&
+      String(row.phone || '').trim() === String(rowB.phone || '').trim() &&
+      String(row.project_name || '').trim() === String(rowB.project_name || '').trim()
+    );
+  });
+  
+  if (duplicates.length <= 1) return "";
+  
+  duplicates.sort((a, b) => a.id.localeCompare(b.id));
+  const primaryId = duplicates[0].id;
+  
+  let hash = 0;
+  for (let i = 0; i < primaryId.length; i++) {
+    hash = primaryId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colorIndex = Math.abs(hash) % colors.length;
+  return colors[colorIndex];
+};
+
 export default function DetailedDataCheckerPage() {
   const [allData, setAllData] = useState<any[]>([]);
   const [filteredData, setFilteredData] = useState<any[]>([]);
@@ -41,6 +83,9 @@ export default function DetailedDataCheckerPage() {
 
   // --- State สำหรับ Infinite Scroll ---
   const [displayLimit, setDisplayLimit] = useState(50);
+
+  // --- State สำหรับดูข้อมูลซ้ำ ---
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
 
   // --- 1. ฟังก์ชันดึงข้อมูล ---
   const fetchDetailedData = async () => {
@@ -221,10 +266,33 @@ export default function DetailedDataCheckerPage() {
       const endTime = new Date(endDate).getTime();
       result = result.filter(item => new Date(item.created_at).getTime() <= endTime);
     }
+
+    // 🕵️ กรองเฉพาะข้อมูลที่น่าจะซ้ำกัน
+    if (showDuplicatesOnly) {
+      result = result.filter((rowA) => {
+        return allData.some((rowB) => {
+          if (rowA.id === rowB.id) return false;
+          
+          const timeA = new Date(rowA.created_at).getTime();
+          const timeB = new Date(rowB.created_at).getTime();
+          const timeDiff = Math.abs(timeA - timeB);
+          
+          return (
+            rowA.sales_id === rowB.sales_id &&
+            timeDiff <= 60000 && // ภายใน 1 นาที
+            rowA.product_category_id === rowB.product_category_id &&
+            String(rowA.note || '').trim() === String(rowB.note || '').trim() &&
+            String(rowA.customer_name || '').trim() === String(rowB.customer_name || '').trim() &&
+            String(rowA.phone || '').trim() === String(rowB.phone || '').trim() &&
+            String(rowA.project_name || '').trim() === String(rowB.project_name || '').trim()
+          );
+        });
+      });
+    }
     
     setFilteredData(result);
     setDisplayLimit(50);
-  }, [searchTerm, filterStatus, filterSource, filterSales, filterProjectType, filterProductCategory, minArea, maxArea, startDate, endDate, allData]);
+  }, [searchTerm, filterStatus, filterSource, filterSales, filterProjectType, filterProductCategory, minArea, maxArea, startDate, endDate, allData, showDuplicatesOnly]);
 
   // --- 3. ฟังก์ชันระบบจัดการ Checkbox ---
   const dataToDisplay = filteredData.slice(0, displayLimit);
@@ -538,6 +606,21 @@ export default function DetailedDataCheckerPage() {
               )}
 
               {!isEditMode && (
+                <button
+                  onClick={() => setShowDuplicatesOnly(!showDuplicatesOnly)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition ${
+                    showDuplicatesOnly
+                      ? "bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200"
+                      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                  title="แสดงเฉพาะข้อมูลที่ส่งซ้ำกันภายใน 1 นาที"
+                >
+                  <AlertTriangle size={16} className={showDuplicatesOnly ? "text-amber-700 animate-pulse" : "text-amber-500"} />
+                  <span>{showDuplicatesOnly ? "แสดงทั้งหมด" : "ดูข้อมูลซ้ำ"}</span>
+                </button>
+              )}
+
+              {!isEditMode && (
                 <button onClick={fetchDetailedData} disabled={loading} className="bg-gray-50 border px-2 py-1.5 rounded-md transition" title="รีเฟรชข้อมูล">
                   <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
                 </button>
@@ -629,9 +712,16 @@ export default function DetailedDataCheckerPage() {
               {loading ? (
                 <tr><td colSpan={21} className="text-center py-16"><RefreshCw size={20} className="animate-spin inline mr-2" /> กำลังโหลด...</td></tr>
               ) : (
-                dataToDisplay.map((row) => (
-                  <tr key={row.id} className={`hover:bg-blue-50/50 transition-colors border-b ${row.is_deleted ? 'bg-red-50 text-red-700' : ''} ${selectedRows.includes(row.id) ? 'bg-blue-50/80' : ''}`}>
-                    {!isEditMode && <td className="px-3 py-1.5 border-r sticky left-0 z-10 text-center bg-inherit"><input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => handleSelectRow(row.id)} /></td>}
+                dataToDisplay.map((row) => {
+                  const dupColor = getDuplicateGroupColor(row, allData);
+                  let rowBgClass = "bg-white hover:bg-slate-50";
+                  if (dupColor) rowBgClass = dupColor;
+                  if (row.is_deleted) rowBgClass = "bg-red-50 text-red-700 hover:bg-red-100";
+                  if (selectedRows.includes(row.id)) rowBgClass = "bg-blue-100 text-blue-950";
+
+                  return (
+                    <tr key={row.id} className={`transition-colors border-b ${rowBgClass}`}>
+                      {!isEditMode && <td className="px-3 py-1.5 border-r sticky left-0 z-10 text-center bg-inherit"><input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => handleSelectRow(row.id)} /></td>}
                     
                     {/* คอลัมน์ "วันที่" และ "เวลา" แยกกัน */}
                     <td className="px-3 py-2 border-r min-w-[110px] whitespace-nowrap">
@@ -718,7 +808,8 @@ export default function DetailedDataCheckerPage() {
                       </td>
                     )}
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
