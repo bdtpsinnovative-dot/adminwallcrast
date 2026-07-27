@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { Save, ArrowLeft, Image as ImageIcon, Box, Tag } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, Box, Tag, Trash2, Plus } from 'lucide-react';
 
 export default function EditProductPage() {
   const params = useParams();
@@ -69,6 +69,72 @@ export default function EditProductPage() {
     setVariants(newVariants);
   };
 
+  // จัดการลบข้อมูลลูก (Variant) รายชิ้น
+  const handleDeleteVariant = async (index: number) => {
+    const targetVariant = variants[index];
+    const skuText = targetVariant?.sku ? `SKU: ${targetVariant.sku}` : `รายการที่ ${index + 1}`;
+    
+    if (!confirm(`⚠️ ยืนยันการลบตัวเลือกสินค้า (${skuText}) ใช่ไหมครับ?`)) {
+      return;
+    }
+
+    // ถ้ามี id อยู่แล้ว ให้ทำการลบจาก Supabase
+    if (targetVariant.id) {
+      try {
+        const { error } = await supabase
+          .from('product_variants')
+          .delete()
+          .eq('id', targetVariant.id);
+
+        if (error) {
+          alert('❌ ลบตัวเลือกไม่สำเร็จ: ' + error.message);
+          return;
+        }
+      } catch (err: any) {
+        alert('❌ เกิดข้อผิดพลาดขณะลบ: ' + err.message);
+        return;
+      }
+    }
+
+    // ลบออกจาก State
+    const updatedVariants = variants.filter((_, i) => i !== index);
+    setVariants(updatedVariants);
+  };
+
+  // จัดการเพิ่มตัวเลือกใหม่ (Variant)
+  const handleAddVariant = () => {
+    const newVariant = {
+      product_id: Number(productId) || productId,
+      sku: '',
+      pattern: '',
+      price: 0,
+      cost: 0,
+      thickness_mm: 0,
+      width_mm: 0,
+      length_mm: 0,
+      sqm_per_unit: 0,
+      moq: '',
+      variant_image: ''
+    };
+    setVariants([...variants, newVariant]);
+  };
+
+  // จัดการลบสินค้าหลักทั้งหมด
+  const handleDeleteProduct = async () => {
+    if (!confirm(`⚠️ ยืนยันการลบสินค้า "${product.name || productId}" และรายการตัวเลือกทั้งหมดใช่ไหมครับ?`)) {
+      return;
+    }
+
+    const { error } = await supabase.from('products').delete().eq('id', productId);
+
+    if (error) {
+      alert('❌ ลบสินค้าไม่สำเร็จ: ' + error.message);
+    } else {
+      alert('✅ ลบสินค้าสำเร็จ!');
+      router.push('/manage-products');
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -94,6 +160,7 @@ export default function EditProductPage() {
       }
 
       alert('✅ บันทึกการแก้ไขข้อมูลสำเร็จ!');
+      fetchProductData(); // reload fresh data
     } catch (error: any) {
       console.error(error);
       alert('❌ เกิดข้อผิดพลาด: ' + error.message);
@@ -128,14 +195,24 @@ export default function EditProductPage() {
               <p className="text-sm text-slate-500 mt-0.5">ID: <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded">{productId}</span></p>
             </div>
           </div>
-          <button 
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
-          >
-            {isSaving ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : <Save size={18} />}
-            {isSaving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={handleDeleteProduct}
+              className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-medium rounded-lg border border-red-200 transition-colors"
+              title="ลบสินค้านี้ทั้งหมด"
+            >
+              <Trash2 size={18} />
+              ลบสินค้านี้
+            </button>
+            <button 
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
+            >
+              {isSaving ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : <Save size={18} />}
+              {isSaving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
+            </button>
+          </div>
         </div>
 
         {/* 🌟 Product Info (ตารางแม่) */}
@@ -184,6 +261,13 @@ export default function EditProductPage() {
               รายการตัวเลือกสินค้า (Variants)
               <span className="bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full text-xs ml-2">{variants.length} รายการ</span>
             </h2>
+            <button
+              type="button"
+              onClick={handleAddVariant}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-lg border border-blue-200 transition-colors"
+            >
+              <Plus size={16} /> เพิ่มตัวเลือกสินค้า
+            </button>
           </div>
           
           <div className="overflow-x-auto">
@@ -199,108 +283,127 @@ export default function EditProductPage() {
                   <th className="py-3 px-4 font-medium">SQM/Unit</th>
                   <th className="py-3 px-4 font-medium">MOQ</th>
                   <th className="py-3 px-4 font-medium">Image URL</th>
+                  <th className="py-3 px-4 font-medium text-center w-16">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {variants.map((v, idx) => (
-                  <tr key={v.id || idx} className="hover:bg-slate-50 transition-colors">
-                    
-                    {/* 📸 รูปภาพ Preview */}
-                    <td className="p-2">
-                      <div className="w-12 h-12 mx-auto rounded-lg border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center shadow-sm">
-                        {v.variant_image ? (
-                          <img 
-                            src={v.variant_image} 
-                            alt={v.sku || 'variant'} 
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              // ถ้ารูปโหลดไม่ขึ้น (ลิงก์เสีย) ให้ซ่อนรูปและโชว์ไอคอนแทน
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center');
-                            }} 
-                          />
-                        ) : (
-                          <ImageIcon size={18} className="text-slate-300" />
-                        )}
-                      </div>
-                    </td>
-
-                    {/* SKU */}
-                    <td className="p-2">
-                      <input 
-                        type="text" value={v.sku || ''} onChange={(e) => handleVariantChange(idx, 'sku', e.target.value)}
-                        className="w-full min-w-[120px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                      />
-                    </td>
-                    {/* Pattern/Color */}
-                    <td className="p-2">
-                      <input 
-                        type="text" value={v.pattern || v.color || ''} onChange={(e) => handleVariantChange(idx, 'pattern', e.target.value)}
-                        className="w-full min-w-[150px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                      />
-                    </td>
-                    {/* Price */}
-                    <td className="p-2">
-                      <input 
-                        type="number" value={v.price || ''} onChange={(e) => handleVariantChange(idx, 'price', e.target.value)}
-                        className="w-full min-w-[100px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-right font-medium text-blue-700 bg-blue-50/50"
-                      />
-                    </td>
-                    {/* Cost */}
-                    <td className="p-2">
-                      <input 
-                        type="number" value={v.cost || ''} onChange={(e) => handleVariantChange(idx, 'cost', e.target.value)}
-                        className="w-full min-w-[100px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-right text-red-700 bg-red-50/50"
-                      />
-                    </td>
-                    {/* Size: T / W / L */}
-                    <td className="p-2 flex gap-1 min-w-[200px]">
-                      <input 
-                        type="number" placeholder="T" value={v.thickness_mm || ''} onChange={(e) => handleVariantChange(idx, 'thickness_mm', e.target.value)}
-                        className="w-1/3 px-2 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-center" title="Thickness"
-                      />
-                      <input 
-                        type="number" placeholder="W" value={v.width_mm || ''} onChange={(e) => handleVariantChange(idx, 'width_mm', e.target.value)}
-                        className="w-1/3 px-2 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-center" title="Width"
-                      />
-                      <input 
-                        type="number" placeholder="L" value={v.length_mm || ''} onChange={(e) => handleVariantChange(idx, 'length_mm', e.target.value)}
-                        className="w-1/3 px-2 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-center" title="Length"
-                      />
-                    </td>
-                    {/* SQM */}
-                    <td className="p-2">
-                      <input 
-                        type="number" step="0.01" value={v.sqm_per_unit || ''} onChange={(e) => handleVariantChange(idx, 'sqm_per_unit', e.target.value)}
-                        className="w-full min-w-[80px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-center"
-                      />
-                    </td>
-                    {/* MOQ */}
-                    <td className="p-2">
-                      <input 
-                        type="text" value={v.moq || ''} onChange={(e) => handleVariantChange(idx, 'moq', e.target.value)}
-                        className="w-full min-w-[100px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none"
-                      />
-                    </td>
-                    {/* Image URL */}
-                    <td className="p-2">
-                      <input 
-                        type="text" value={v.variant_image || ''} onChange={(e) => handleVariantChange(idx, 'variant_image', e.target.value)}
-                        className="w-full min-w-[200px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs text-slate-500"
-                        placeholder="https://..."
-                      />
+                {variants.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-8 text-center text-slate-400">
+                      ยังไม่มีรายการตัวเลือกสินค้า กดปุ่ม "+ เพิ่มตัวเลือกสินค้า" เพื่อเพิ่มได้
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  variants.map((v, idx) => (
+                    <tr key={v.id || `new-${idx}`} className="hover:bg-slate-50 transition-colors">
+                      
+                      {/* 📸 รูปภาพ Preview */}
+                      <td className="p-2">
+                        <div className="w-12 h-12 mx-auto rounded-lg border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center shadow-sm">
+                          {v.variant_image ? (
+                            <img 
+                              src={v.variant_image} 
+                              alt={v.sku || 'variant'} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center');
+                              }} 
+                            />
+                          ) : (
+                            <ImageIcon size={18} className="text-slate-300" />
+                          )}
+                        </div>
+                      </td>
+
+                      {/* SKU */}
+                      <td className="p-2">
+                        <input 
+                          type="text" value={v.sku || ''} onChange={(e) => handleVariantChange(idx, 'sku', e.target.value)}
+                          className="w-full min-w-[120px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                      </td>
+                      {/* Pattern/Color */}
+                      <td className="p-2">
+                        <input 
+                          type="text" value={v.pattern || v.color || ''} onChange={(e) => handleVariantChange(idx, 'pattern', e.target.value)}
+                          className="w-full min-w-[150px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                      </td>
+                      {/* Price */}
+                      <td className="p-2">
+                        <input 
+                          type="number" value={v.price || ''} onChange={(e) => handleVariantChange(idx, 'price', e.target.value)}
+                          className="w-full min-w-[100px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-right font-medium text-blue-700 bg-blue-50/50"
+                        />
+                      </td>
+                      {/* Cost */}
+                      <td className="p-2">
+                        <input 
+                          type="number" value={v.cost || ''} onChange={(e) => handleVariantChange(idx, 'cost', e.target.value)}
+                          className="w-full min-w-[100px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-right text-red-700 bg-red-50/50"
+                        />
+                      </td>
+                      {/* Size: T / W / L */}
+                      <td className="p-2 flex gap-1 min-w-[200px]">
+                        <input 
+                          type="number" placeholder="T" value={v.thickness_mm || ''} onChange={(e) => handleVariantChange(idx, 'thickness_mm', e.target.value)}
+                          className="w-1/3 px-2 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-center" title="Thickness"
+                        />
+                        <input 
+                          type="number" placeholder="W" value={v.width_mm || ''} onChange={(e) => handleVariantChange(idx, 'width_mm', e.target.value)}
+                          className="w-1/3 px-2 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-center" title="Width"
+                        />
+                        <input 
+                          type="number" placeholder="L" value={v.length_mm || ''} onChange={(e) => handleVariantChange(idx, 'length_mm', e.target.value)}
+                          className="w-1/3 px-2 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-center" title="Length"
+                        />
+                      </td>
+                      {/* SQM */}
+                      <td className="p-2">
+                        <input 
+                          type="number" step="0.01" value={v.sqm_per_unit || ''} onChange={(e) => handleVariantChange(idx, 'sqm_per_unit', e.target.value)}
+                          className="w-full min-w-[80px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-center"
+                        />
+                      </td>
+                      {/* MOQ */}
+                      <td className="p-2">
+                        <input 
+                          type="text" value={v.moq || ''} onChange={(e) => handleVariantChange(idx, 'moq', e.target.value)}
+                          className="w-full min-w-[100px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none"
+                        />
+                      </td>
+                      {/* Image URL */}
+                      <td className="p-2">
+                        <input 
+                          type="text" value={v.variant_image || ''} onChange={(e) => handleVariantChange(idx, 'variant_image', e.target.value)}
+                          className="w-full min-w-[200px] px-3 py-1.5 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs text-slate-500"
+                          placeholder="https://..."
+                        />
+                      </td>
+                      {/* ปุ่มลบ Variant รายชิ้น */}
+                      <td className="p-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteVariant(idx)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="ลบตัวเลือกนี้"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
           <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex justify-between">
-             <span>* สามารถพิมพ์แก้ไขข้อมูลในช่องตารางได้โดยตรง และดูตัวอย่างรูปภาพได้ที่คอลัมน์แรกสุด</span>
+             <span>* สามารถพิมพ์แก้ไขข้อมูลในช่องตารางได้โดยตรง, กดลบรายชิ้นที่คอลัมน์ "จัดการ" หรือกด "+ เพิ่มตัวเลือกสินค้า" ได้</span>
           </div>
         </div>
 
       </div>
     </div>
   );
-}
+}

@@ -38,52 +38,65 @@ const mergeProjects = (existing: any[], incoming: any[]) => {
   return Array.from(map.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };
 
+const mapFlatToProject = (row: any) => ({
+  id: row.id,
+  project_name: row.project_name,
+  area_sqm: row.area_sqm,
+  created_at: row.created_at,
+  is_important: row.is_important,
+  project_type_id: row.project_type_id,
+  project_note: row.project_note,
+  account_developer: row.account_developer,
+  account_architecture: row.account_architecture,
+  account_interior: row.account_interior,
+  account_contractor: row.account_contractor,
+  queue_level: row.queue_level,
+  project_year: row.project_year,
+  project_types: row.project_type_name ? { name: row.project_type_name } : null,
+  order_items: {
+    id: row.order_item_id,
+    note: row.sales_note,
+    interest_level: row.interest_level,
+    product_category_id: row.product_category_id,
+    product_categories: row.product_category_name ? { name: row.product_category_name } : null,
+    orders: {
+      id: row.order_id,
+      customer_name: row.customer_name,
+      phone: row.phone,
+      user_id: row.user_id,
+      team_id: row.team_id,
+      is_synced: row.is_synced,
+      audit_log: row.audit_log,
+      source: row.source,
+      customer_type_id: row.customer_type_id,
+      companies: row.company_name ? { id: row.company_id, name: row.company_name } : null
+    }
+  }
+});
+
 const fetchProjectsForRange = async (startIso: string, endIso: string) => {
-  let q = supabase
-    .from('order_item_projects')
-    .select(`
-      id, project_name, area_sqm, created_at, is_important, project_type_id, project_note,
-      account_developer, account_architecture, account_interior, account_contractor,
-      queue_level, project_year, 
-      project_types (name), 
-      order_items!inner (
-        id, note, interest_level, images, product_category_id,
-        product_categories (name), 
-        orders!inner (
-          id, customer_name, phone, user_id, team_id, is_synced, audit_log, source, customer_type_id,
-          companies (id, name) 
-        )
-      )
-    `, { count: 'exact' }) 
+  const PAGE_SIZE = 1000;
+  
+  const { data: firstBatch, count: rawTotalCount, error: firstError } = await supabase
+    .from('v_dashboard_projects')
+    .select('*', { count: 'exact' })
     .or('is_deleted.eq.false,is_deleted.is.null')
     .gte('created_at', startIso)
-    .lte('created_at', endIso);
+    .lte('created_at', endIso)
+    .order('created_at', { ascending: false })
+    .range(0, PAGE_SIZE - 1);
 
-  const { count: rawTotalCount, error: countError } = await q.range(0, 0);
-  if (countError) throw countError;
+  if (firstError) throw firstError;
   
-  let fetched: any[] = [];
-  if (rawTotalCount && rawTotalCount > 0) {
-    const PAGE_SIZE = 1000;
+  let fetched: any[] = (firstBatch || []).map(mapFlatToProject);
+  
+  if (rawTotalCount && rawTotalCount > PAGE_SIZE) {
     const promises = [];
-    for (let offset = 0; offset < rawTotalCount; offset += PAGE_SIZE) {
+    for (let offset = PAGE_SIZE; offset < rawTotalCount; offset += PAGE_SIZE) {
       promises.push(
         supabase
-          .from('order_item_projects')
-          .select(`
-            id, project_name, area_sqm, created_at, is_important, project_type_id, project_note,
-            account_developer, account_architecture, account_interior, account_contractor,
-            queue_level, project_year, 
-            project_types (name), 
-            order_items!inner (
-              id, note, interest_level, images, product_category_id,
-              product_categories (name), 
-              orders!inner (
-                id, customer_name, phone, user_id, team_id, is_synced, audit_log, source, customer_type_id,
-                companies (id, name) 
-              )
-            )
-          `)
+          .from('v_dashboard_projects')
+          .select('*')
           .or('is_deleted.eq.false,is_deleted.is.null')
           .gte('created_at', startIso)
           .lte('created_at', endIso)
@@ -94,7 +107,7 @@ const fetchProjectsForRange = async (startIso: string, endIso: string) => {
     const results = await Promise.all(promises);
     results.forEach(({ data, error }) => {
       if (error) throw error;
-      if (data) fetched = [...fetched, ...data];
+      if (data) fetched = [...fetched, ...data.map(mapFlatToProject)];
     });
   }
   return fetched;

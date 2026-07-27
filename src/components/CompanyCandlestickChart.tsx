@@ -23,14 +23,17 @@ export default function CompanyCandlestickChart({ data, salesKeys = [] }: Props)
   });
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(50);
 
   const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#f97316', '#14b8a6', '#84cc16'];
 
   const rawData = data?.filter(Boolean) || [];
   
-  const chartData = rawData.filter(item => 
+  const allFilteredData = rawData.filter(item => 
     item.name?.toLowerCase().includes(searchTerm.toLowerCase().trim())
   );
+
+  const chartData = allFilteredData.slice(0, displayLimit);
 
   const dynamicWidth = Math.max(1600, 150 + (chartData.length * 65));
 
@@ -174,6 +177,16 @@ export default function CompanyCandlestickChart({ data, salesKeys = [] }: Props)
     return null;
   };
 
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
+    if (scrollLeft + clientWidth >= scrollWidth - 350) {
+      if (displayLimit < allFilteredData.length) {
+        setDisplayLimit(prev => Math.min(allFilteredData.length, prev + 50));
+      }
+    }
+  };
+
   return (
     <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-200 flex flex-col w-full mb-8">
       
@@ -183,25 +196,44 @@ export default function CompanyCandlestickChart({ data, salesKeys = [] }: Props)
             <Users2 size={20} className="text-indigo-600" /> 
             อันดับความถี่การเข้าพบซ้ำรายบริษัท (B2B Engagement Frequency)
           </h3>
-          <p className="text-slate-500 text-sm font-medium mt-0.5">💡 เอาเมาส์ชี้เพื่อดูรายละเอียด หรือคลิกเพื่อดูข้อมูลเชิงลึกได้เลยครับ</p>
+          <p className="text-slate-500 text-sm font-medium mt-0.5">
+            💡 ลากเลื่อนขวาเพื่อดูบริษัทเพิ่มเติม (โหลดเพิ่มให้อัตโนมัติเมื่อเลื่อนสุด) หรือเอาเมาส์ชี้ดูรายละเอียด
+          </p>
         </div>
 
-        <div className="w-full lg:w-72 relative">
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-            <Search size={16} />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+          <div className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+            <span>แสดง {chartData.length.toLocaleString()} จาก {allFilteredData.length.toLocaleString()} บริษัท</span>
+            {displayLimit < allFilteredData.length && (
+              <button
+                onClick={() => setDisplayLimit(allFilteredData.length)}
+                className="text-[11px] font-black text-indigo-600 hover:text-indigo-800 underline ml-1"
+              >
+                แสดงทั้งหมด
+              </button>
+            )}
           </div>
-          <input
-            type="text"
-            placeholder="ค้นหาชื่อบริษัท..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 transition-all shadow-inner"
-          />
-          {searchTerm && (
-            <button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-2 flex items-center px-1 text-slate-400 hover:text-slate-600">
-              <X size={16} className="bg-slate-200/60 hover:bg-slate-200 p-0.5 rounded-full" />
-            </button>
-          )}
+
+          <div className="w-full sm:w-64 relative">
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
+              <Search size={16} />
+            </div>
+            <input
+              type="text"
+              placeholder="ค้นหาชื่อบริษัท..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setDisplayLimit(50);
+              }}
+              className="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 transition-all shadow-inner"
+            />
+            {searchTerm && (
+              <button onClick={() => { setSearchTerm(''); setDisplayLimit(50); }} className="absolute inset-y-0 right-2 flex items-center px-1 text-slate-400 hover:text-slate-600">
+                <X size={16} className="bg-slate-200/60 hover:bg-slate-200 p-0.5 rounded-full" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -217,7 +249,8 @@ export default function CompanyCandlestickChart({ data, salesKeys = [] }: Props)
           onMouseLeave={handleMouseLeave}
           onMouseUp={handleMouseUp}
           onMouseMove={handleMouseMove}
-          className="w-full h-[410px] overflow-x-auto select-none cursor-grab active:cursor-grabbing focus:outline-none"
+          onScroll={handleScroll}
+          className="w-full h-[410px] overflow-x-auto select-none cursor-grab active:cursor-grabbing focus:outline-none relative"
           style={{ msOverflowStyle: 'none', scrollbarWidth: 'none', outline: 'none' }}
         >
           <style dangerouslySetInnerHTML={{__html: `div::-webkit-scrollbar { display: none !important; }`}} />
@@ -227,7 +260,6 @@ export default function CompanyCandlestickChart({ data, salesKeys = [] }: Props)
               <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} interval={0} angle={-45} textAnchor="end" height={120} />
               <YAxis tick={{ fill: '#64748b', fontSize: 12, fontWeight: 700 }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} unit=" ครั้ง" />
               
-              {/* 🌟 🟢 พลังแก้บั๊ก: สั่ง wrapperStyle ให้เมาส์เข้ามาคลิกและใช้งานในกล่องได้ */}
               <Tooltip 
                 content={<CustomTooltip />} 
                 cursor={{ fill: '#f8fafc' }} 
@@ -247,6 +279,26 @@ export default function CompanyCandlestickChart({ data, salesKeys = [] }: Props)
                 />
               ))}
             </BarChart>
+          </div>
+        </div>
+      )}
+
+      {displayLimit < allFilteredData.length && (
+        <div className="mt-3 flex items-center justify-between bg-indigo-50/60 border border-indigo-100 px-4 py-2 rounded-xl text-xs font-semibold text-indigo-700">
+          <span>แสดง {chartData.length} จาก {allFilteredData.length} บริษัท (เลื่อนขวาเพื่อดึงข้อมูลเพิ่มอัตโนมัติ)</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setDisplayLimit(prev => Math.min(allFilteredData.length, prev + 50))}
+              className="bg-white hover:bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-lg text-indigo-700 font-bold transition shadow-sm"
+            >
+              + โหลดเพิ่ม 50 บริษัท
+            </button>
+            <button
+              onClick={() => setDisplayLimit(allFilteredData.length)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg font-bold transition shadow-sm"
+            >
+              แสดงทั้งหมด ({allFilteredData.length})
+            </button>
           </div>
         </div>
       )}

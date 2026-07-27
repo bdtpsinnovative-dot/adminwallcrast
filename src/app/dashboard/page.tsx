@@ -16,54 +16,38 @@ export default async function DashboardPage({
     minArea?: string; maxArea?: string; source?: string; team?: string;
   };
 }) {
-  const masterDataPromise = Promise.all([
-    supabase.from('profiles').select('id, full_name, team_id'),
+  const cookieStore = await cookies();
+  const token = cookieStore.get('admin_token')?.value;
+
+  if (!token) {
+    redirect('/login');
+  }
+
+  // 🚀 Fetch Auth + all Master Data in 1 PARALLEL Promise.all call (eliminates 1.2s server waterfall)
+  const [
+    authResult,
+    { data: profiles },
+    { data: projectTypes },
+    { data: productCategories },
+    { data: teams },
+    { data: customerTypes }
+  ] = await Promise.all([
+    supabase.auth.getUser(token),
+    supabase.from('profiles').select('id, full_name, team_id, role'),
     supabase.from('project_types').select('id, name'),
     supabase.from('product_categories').select('id, name'),
     supabase.from('teams').select('id, team_name').order('team_name'),
     supabase.from('customer_types').select('id, name')
   ]);
 
-  const cookieStore = await cookies();
-  const token = cookieStore.get('admin_token')?.value;
-  
-  // 1. ถ้าไม่มี Cookie เลย เตะกลับหน้า Login
-  if (!token) {
+  if (authResult.error || !authResult.data?.user) {
     redirect('/login');
   }
 
-  // 2. เอา Token ไปเช็คกับ Supabase ว่ากุญแจยังไม่หมดอายุใช่ไหม?
-  const { data, error } = await supabase.auth.getUser(token);
-
-  // 🛑 3. จุดสำคัญ: ถ้า Token หมดอายุ (Error) หรือไม่ได้ข้อมูล User ให้เตะกลับหน้า Login ทันที!
-  if (error || !data?.user) {
-    redirect('/login');
-  }
-
-  const user = data.user;
-  let currentUserRole = 'user';
-  let currentUserTeamId = null;
-
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, team_id')
-      .eq('id', user.id)
-      .single();
-      
-    if (profile) {
-      currentUserRole = profile.role;
-      currentUserTeamId = profile.team_id;
-    }
-  }
-
-  const [
-    { data: profiles },
-    { data: projectTypes },
-    { data: productCategories },
-    { data: teams },
-    { data: customerTypes }
-  ] = await masterDataPromise;
+  const user = authResult.data.user;
+  const currentProfile = profiles?.find((p: any) => p.id === user.id);
+  const currentUserRole = currentProfile?.role || 'user';
+  const currentUserTeamId = currentProfile?.team_id || null;
 
   return (
     <DashboardClientContainer

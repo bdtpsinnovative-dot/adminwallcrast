@@ -387,6 +387,13 @@ export default function VipPipelineTable({ projects, profilesMap, salesStats, cu
     } finally { setLoadingId(null); }
   };
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tab, sizeFilter, sortArea, projects]);
+
   const displayProjects = useMemo(() => {
     let filtered = projects.filter(proj => {
       const isVip = proj.is_important === true || proj.is_important === 'true' || proj.is_important === 1;
@@ -418,6 +425,13 @@ export default function VipPipelineTable({ projects, profilesMap, salesStats, cu
       return 0; 
     });
   }, [projects, tab, sizeFilter, sortArea]); 
+
+  const totalPages = useMemo(() => Math.ceil(displayProjects.length / pageSize) || 1, [displayProjects.length]);
+  
+  const paginatedProjects = useMemo(() => {
+    const startIdx = (currentPage - 1) * pageSize;
+    return displayProjects.slice(startIdx, startIdx + pageSize);
+  }, [displayProjects, currentPage]); 
 
   const sortedSalesStats = useMemo(() => {
     return [...salesStats].sort((a, b) => {
@@ -545,10 +559,10 @@ export default function VipPipelineTable({ projects, profilesMap, salesStats, cu
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {displayProjects.length === 0 ? (
+                {paginatedProjects.length === 0 ? (
   <tr><td colSpan={12} className="text-center py-10 text-slate-400 font-medium">ไม่พบข้อมูลโครงการตามเงื่อนไขที่เลือกครับ</td></tr>
 ) : (
-                  displayProjects.map((proj, idx) => {
+                  paginatedProjects.map((proj, idx) => {
                     const item = Array.isArray(proj.order_items) ? proj.order_items[0] : proj.order_items;
                     const order = item?.orders;
                     const activeAccount = getActiveAccount(proj);
@@ -722,6 +736,49 @@ export default function VipPipelineTable({ projects, profilesMap, salesStats, cu
             </table>
           )}
         </div>
+
+        {viewMode === 'projects' && totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm">
+            <span className="text-slate-500 font-medium text-xs">
+              แสดง {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, displayProjects.length)} จากทั้งหมด {displayProjects.length.toLocaleString()} รายการ
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition"
+              >
+                หน้าแรก
+              </button>
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition"
+              >
+                ก่อนหน้า
+              </button>
+
+              <span className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-black text-xs rounded-lg">
+                {currentPage} / {totalPages}
+              </span>
+
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition"
+              >
+                ถัดไป
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition"
+              >
+                หน้าสุดท้าย
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <EditProjectModal 
