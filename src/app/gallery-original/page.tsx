@@ -42,8 +42,9 @@ export default function ImageGalleryOriginalPage() {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'preview' | 'compressing' | 'uploading'>('idle');
   
   const [replaceFileName, setReplaceFileName] = useState<string | null>(null);
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -195,11 +196,24 @@ export default function ImageGalleryOriginalPage() {
     setIsModalOpen(true);
   };
 
-  const onFileSelect = (file: File) => {
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    setImageSrc(url);
-    setSelectedFile(file);
+  const onFilesSelect = (files: FileList | File[]) => {
+    if (!files || files.length === 0) return;
+    
+    const fileArray = Array.from(files);
+    
+    // ถ้าตั้งใจอัปโหลดทับไฟล์เดิม (Replace) จะบังคับให้เลือกได้แค่ 1 รูปเท่านั้น
+    if (replaceFileName && fileArray.length > 1) {
+       alert('การแทนที่รูปภาพ สามารถเลือกได้เพียง 1 ไฟล์เท่านั้น');
+       setSelectedFiles([fileArray[0]]);
+       const url = URL.createObjectURL(fileArray[0]);
+       setPreviewUrls([url]);
+       setUploadStatus('preview');
+       return;
+    }
+
+    setSelectedFiles(fileArray);
+    const urls = fileArray.map(f => URL.createObjectURL(f));
+    setPreviewUrls(urls);
     setUploadStatus('preview');
   };
 
@@ -249,33 +263,56 @@ export default function ImageGalleryOriginalPage() {
   };
 
   const handleUploadClick = async () => {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
+    
+    setUploadProgress({ current: 0, total: selectedFiles.length });
+    let successCount = 0;
+
     try {
-      setUploadStatus('compressing');
-      const compressedBlob = await convertToWebP(selectedFile);
-      const fileName = replaceFileName || `${Date.now()}-${Math.floor(Math.random() * 1000)}.webp`;
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        
+        setUploadStatus('compressing');
+        setUploadProgress({ current: i + 1, total: selectedFiles.length });
+        
+        const compressedBlob = await convertToWebP(file);
+        
+        const fileName = (replaceFileName && selectedFiles.length === 1) 
+          ? replaceFileName 
+          : `${Date.now()}-${Math.floor(Math.random() * 1000)}.webp`;
 
-      setUploadStatus('uploading');
+        setUploadStatus('uploading');
 
-      // ขอ presigned URL จาก server แล้วอัพตรงไป R2 (ข้าม limit 10MB ของ Next.js)
-      const presignRes = await fetch('/api/presign-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, folder: TARGET_FOLDER }),
-      });
-      if (!presignRes.ok) throw new Error('ขอ presigned URL ไม่สำเร็จ');
-      const { presignedUrl } = await presignRes.json();
+        // ขอ presigned URL จาก server แล้วอัพตรงไป R2 (ข้าม limit 10MB ของ Next.js)
+        const presignRes = await fetch('/api/presign-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName, folder: TARGET_FOLDER }),
+        });
+        if (!presignRes.ok) throw new Error(`ขอ presigned URL ไม่สำเร็จสำหรับไฟล์ ${file.name}`);
+        const { presignedUrl } = await presignRes.json();
 
-      const response = await fetch(presignedUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'image/webp' },
-        body: compressedBlob,
-      });
+        const response = await fetch(presignedUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'image/webp' },
+          body: compressedBlob,
+        });
 
-      if (!response.ok) throw new Error('Upload failed');
+        if (!response.ok) throw new Error(`Upload failed for ${file.name}`);
+        successCount++;
+        
+        // หน่วงเวลาเล็กน้อยเพื่อไม่ให้ชื่อไฟล์ซ้ำกันถ้ารันเร็วเกินไป (Date.now()) และลดภาระ server
+        if (i < selectedFiles.length - 1) {
+          await new Promise(r => setTimeout(r, 100));
+        }
+      }
 
       closeModal();
-      showToast(replaceFileName ? '✅ แทนที่รูปภาพเรียบร้อย (URL เดิม)' : '✅ อัปโหลดรูปภาพใหม่เรียบร้อย!');
+      if (replaceFileName && selectedFiles.length === 1) {
+        showToast('✅ แทนที่รูปภาพเรียบร้อย (URL เดิม)');
+      } else {
+        showToast(`✅ อัปโหลดสำเร็จ ${successCount} รูปภาพ!`);
+      }
       
       // 🌟 พอกดเสร็จ จะเรียก fetchImages() ซึ่งตอนนี้มันจะไม่ติด Cache แล้ว รูปใหม่จะเด้งมาอันดับ 1 ทันที
       fetchImages(false); 
@@ -289,10 +326,11 @@ export default function ImageGalleryOriginalPage() {
   const closeModal = () => {
     setIsModalOpen(false);
     setUploadStatus('idle');
-    setImageSrc(null);
-    setSelectedFile(null);
+    previewUrls.forEach(url => URL.revokeObjectURL(url));
+    setPreviewUrls([]);
+    setSelectedFiles([]);
     setReplaceFileName(null); 
-    if (imageSrc) URL.revokeObjectURL(imageSrc); 
+    setUploadProgress({ current: 0, total: 0 });
   };
 
   const copyToClipboard = (text: string) => {
@@ -517,7 +555,7 @@ export default function ImageGalleryOriginalPage() {
                   onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
                   onDrop={(e) => {
                     e.preventDefault(); setIsDragging(false);
-                    if (e.dataTransfer.files?.length > 0) onFileSelect(e.dataTransfer.files[0]);
+                    if (e.dataTransfer.files?.length > 0) onFilesSelect(e.dataTransfer.files);
                   }}
                   className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all ${
                     isDragging ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-emerald-400 hover:bg-slate-50'
@@ -525,38 +563,53 @@ export default function ImageGalleryOriginalPage() {
                 >
                   <input 
                     type="file" 
-                    accept="image/*" 
+                    accept="image/*"
+                    multiple={!replaceFileName} 
                     ref={fileInputRef} 
-                    onChange={(e) => { if (e.target.files?.[0]) onFileSelect(e.target.files[0]); }}
+                    onChange={(e) => { if (e.target.files?.length) onFilesSelect(e.target.files); }}
                     className="hidden" 
                   />
                   <ImageIcon size={48} className="mx-auto text-slate-300 mb-3" />
-                  <p className="font-medium text-slate-700">คลิก หรือ ลากไฟล์มาวางที่นี่</p>
+                  <p className="font-medium text-slate-700">คลิก หรือ ลากไฟล์มาวางที่นี่ (รองรับหลายไฟล์)</p>
                   <p className="text-xs text-slate-500 mt-1">(รูปจะรักษาสัดส่วนเดิมไว้)</p>
                 </div>
               )}
 
-              {uploadStatus === 'preview' && imageSrc && (
+              {uploadStatus === 'preview' && previewUrls.length > 0 && (
                 <div className="flex flex-col gap-4">
-                  <div className="relative w-full h-80 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center p-2 border border-slate-200">
-                    <img 
-                      src={imageSrc} 
-                      alt="Preview" 
-                      className="max-w-full max-h-full object-contain shadow-sm"
-                    />
+                  <div className={`grid gap-3 overflow-y-auto max-h-[50vh] ${previewUrls.length > 1 ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-1'}`}>
+                    {previewUrls.map((url, idx) => (
+                      <div key={idx} className={`relative w-full ${previewUrls.length === 1 ? 'h-80' : 'h-32'} bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center p-2 border border-slate-200`}>
+                        <img 
+                          src={url} 
+                          alt={`Preview ${idx + 1}`} 
+                          className="max-w-full max-h-full object-contain shadow-sm"
+                        />
+                        {previewUrls.length > 1 && (
+                          <span className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded shadow-sm">
+                            {idx + 1}
+                          </span>
+                        )}
+                      </div>
+                    ))}
                   </div>
+                  {previewUrls.length > 1 && (
+                    <div className="text-sm font-medium text-emerald-700 bg-emerald-50 py-2 px-3 rounded-lg text-center border border-emerald-100">
+                      เตรียมอัปโหลดทั้งหมด {selectedFiles.length} ไฟล์
+                    </div>
+                  )}
                   <div className="flex justify-end gap-3 mt-2">
                     <button 
-                      onClick={() => { setUploadStatus('idle'); setImageSrc(null); setSelectedFile(null); }}
+                      onClick={() => { setUploadStatus('idle'); previewUrls.forEach(u => URL.revokeObjectURL(u)); setPreviewUrls([]); setSelectedFiles([]); }}
                       className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                     >
-                      ยกเลิกเปลี่ยนรูป
+                      ยกเลิก
                     </button>
                     <button 
                       onClick={handleUploadClick}
                       className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
                     >
-                      ยืนยันและอัปโหลด
+                      ยืนยันและอัปโหลด {previewUrls.length > 1 ? `(${previewUrls.length})` : ''}
                     </button>
                   </div>
                 </div>
@@ -567,10 +620,18 @@ export default function ImageGalleryOriginalPage() {
                   <Loader2 className="animate-spin text-emerald-600" size={40} />
                   <div>
                     <p className="font-semibold text-slate-700">
-                      {uploadStatus === 'compressing' ? 'กำลังบีบอัดภาพ (WebP)...' : 'กำลังอัปโหลดเข้าโฟลเดอร์ original...'}
+                      {uploadStatus === 'compressing' ? `กำลังบีบอัดภาพที่ ${uploadProgress.current}/${uploadProgress.total} (WebP)...` : `กำลังอัปโหลดภาพที่ ${uploadProgress.current}/${uploadProgress.total} เข้าสู่ระบบ...`}
                     </p>
                     <p className="text-xs text-slate-500 mt-1">กรุณารอสักครู่ ห้ามปิดหน้าต่างนี้</p>
                   </div>
+                  {uploadProgress.total > 1 && (
+                    <div className="w-full max-w-xs bg-slate-100 rounded-full h-2 mt-4 overflow-hidden border border-slate-200">
+                      <div 
+                        className="bg-emerald-500 h-full transition-all duration-300" 
+                        style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
