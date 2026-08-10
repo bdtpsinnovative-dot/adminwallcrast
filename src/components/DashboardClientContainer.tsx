@@ -23,6 +23,7 @@ interface Props {
   productCategories: any[];
   teams: any[];
   customerTypes: any[];
+  variant?: 'standard' | 'advance';
 }
 
 interface CacheData {
@@ -120,7 +121,8 @@ export default function DashboardClientContainer({
   projectTypes,
   productCategories,
   teams,
-  customerTypes
+  customerTypes,
+  variant = 'standard'
 }: Props) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -606,7 +608,7 @@ export default function DashboardClientContainer({
           <div className="flex items-center gap-3 text-indigo-700 mb-1">
             <LayoutDashboard size={28} className="stroke-[2.5]" />
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
-              Enterprise Overview 
+              {variant === 'advance' ? 'Dashboard Advance' : 'Enterprise Overview'}
               <span className="text-sm bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full shadow-sm align-middle">God Mode</span>
             </h1>
             <button 
@@ -705,7 +707,14 @@ export default function DashboardClientContainer({
         </div>
       </div>
 
-      {/* กล่องตัวเลข 4 กล่อง (ของเดิม) */}
+      {variant === 'advance' ? (
+        <div className="w-full h-full flex flex-col items-center justify-center min-h-[30vh] bg-white rounded-2xl border border-slate-200 shadow-sm p-10 mt-8">
+          <h2 className="text-2xl font-bold text-slate-400 mb-2">พื้นที่สำหรับ Dashboard Advance</h2>
+          <p className="text-slate-500">คุณสามารถเพิ่มกราฟใหม่ หรือตารางอื่นๆ สำหรับ Advance Dashboard ในส่วนนี้ได้เลยครับ</p>
+        </div>
+      ) : (
+        <>
+          {/* กล่องตัวเลข 4 กล่อง (ของเดิม) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
           <div className="flex justify-between items-start">
@@ -838,6 +847,8 @@ export default function DashboardClientContainer({
       </div>
       
       <AiChatAssistant dashboardData={dashboardSummary} />
+        </>
+      )}
     </main>
   );
 }
