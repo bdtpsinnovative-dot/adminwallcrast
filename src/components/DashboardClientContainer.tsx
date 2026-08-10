@@ -161,8 +161,8 @@ export default function DashboardClientContainer({
 
   // Date ranges
   const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  thirtyDaysAgo.setHours(0, 0, 0, 0); 
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  ninetyDaysAgo.setHours(0, 0, 0, 0); 
   const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
   const startParam = searchParams.get('start');
@@ -170,7 +170,7 @@ export default function DashboardClientContainer({
 
   const startIso = startParam 
     ? new Date(`${startParam}T00:00:00+07:00`).toISOString() 
-    : thirtyDaysAgo.toISOString();
+    : ninetyDaysAgo.toISOString();
     
   const endIso = endParam 
     ? new Date(`${endParam}T23:59:59.999+07:00`).toISOString() 

@@ -37,7 +37,7 @@ const formatLocal = (d: Date) => {
   const allTimeStart = '2020-01-01';
   const allTimeEnd = '2030-12-31';
 
-  const urlStart = searchParams.get('start') || thirtyDaysAgoStr; 
+  const urlStart = searchParams.get('start') || ninetyDaysAgoStr; 
   const urlEnd = searchParams.get('end') || todayStr;
   
   const currentSales = searchParams.get('sales') || 'ALL';
@@ -81,9 +81,9 @@ const formatLocal = (d: Date) => {
 
   let activePreset = 'CUSTOM';
   if (!searchParams.get('start') && !searchParams.get('end')) {
-    activePreset = '30DAYS';
-  } else if (urlStart === ninetyDaysAgoStr && urlEnd === todayStr) {
     activePreset = '90DAYS';
+  } else if (urlStart === thirtyDaysAgoStr && urlEnd === todayStr) {
+    activePreset = '30DAYS';
   } else if (urlStart === firstDayOfMonth && urlEnd === lastDayOfMonth) {
     activePreset = 'THIS_MONTH';
   } else if (urlStart === allTimeStart) {
