@@ -14,6 +14,7 @@ import DashboardCharts from '@/components/DashboardCharts';
 import DashboardDateFilter from '@/components/DashboardDateFilter';
 import CompanyCandlestickChart from '@/components/CompanyCandlestickChart';
 import AiChatAssistant from '@/components/AiChatAssistant';
+import WeeklyVisitPlanner from '@/components/WeeklyVisitPlanner';
 
 interface Props {
   currentUserRole: string;
@@ -708,10 +709,11 @@ export default function DashboardClientContainer({
       </div>
 
       {variant === 'advance' ? (
-        <div className="w-full h-full flex flex-col items-center justify-center min-h-[30vh] bg-white rounded-2xl border border-slate-200 shadow-sm p-10 mt-8">
-          <h2 className="text-2xl font-bold text-slate-400 mb-2">พื้นที่สำหรับ Dashboard Advance</h2>
-          <p className="text-slate-500">คุณสามารถเพิ่มกราฟใหม่ หรือตารางอื่นๆ สำหรับ Advance Dashboard ในส่วนนี้ได้เลยครับ</p>
-        </div>
+        <WeeklyVisitPlanner 
+          projectTypes={projectTypes} 
+          productCategories={productCategories} 
+          currentUserRole={currentUserRole}
+        />
       ) : (
         <>
           {/* กล่องตัวเลข 4 กล่อง (ของเดิม) */}
