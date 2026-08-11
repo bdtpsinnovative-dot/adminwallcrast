@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Calendar, CheckCircle2, XCircle, Plus, ChevronLeft, ChevronRight, 
@@ -14,14 +14,32 @@ interface Props {
 }
 
 export default function WeeklyVisitPlanner({ projectTypes, productCategories, currentUserRole }: Props) {
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
+  const [weeks, setWeeks] = useState<{ start: Date, end: Date, label: string }[]>([]);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
     const d = new Date();
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Get Monday
-    const monday = new Date(d.setDate(diff));
-    monday.setHours(0,0,0,0);
-    return monday;
-  });
+    const currentMonday = new Date(d.setDate(diff));
+    currentMonday.setHours(0,0,0,0);
+    
+    const newWeeks = [];
+    // 4 weeks past, current week, 7 weeks future = 12 weeks total
+    for (let i = -4; i <= 7; i++) {
+      const start = new Date(currentMonday);
+      start.setDate(start.getDate() + (i * 7));
+      
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23,59,59,999);
+      
+      const label = `${start.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}`;
+      
+      newWeeks.push({ start, end, label });
+    }
+    setWeeks(newWeeks);
+  }, []);
 
   const [plans, setPlans] = useState<any[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
@@ -57,14 +75,50 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
   const [visibleProjectCount, setVisibleProjectCount] = useState(50);
 
-  const fetchPlans = async () => {
-    setLoading(true);
-    const endOfWeek = new Date(currentWeekStart);
-    endOfWeek.setDate(endOfWeek.getDate() + 6);
-    endOfWeek.setHours(23,59,59,999);
+  // Drag to scroll logic
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
 
-    const startIso = currentWeekStart.toISOString();
-    const endIso = endOfWeek.toISOString();
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollContainerRef.current) return;
+    isDragging.current = true;
+    scrollContainerRef.current.classList.add('cursor-grabbing');
+    scrollContainerRef.current.classList.remove('snap-x', 'snap-mandatory');
+    startX.current = e.pageX - scrollContainerRef.current.offsetLeft;
+    scrollLeft.current = scrollContainerRef.current.scrollLeft;
+  };
+
+  const handleMouseLeave = () => {
+    isDragging.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.classList.remove('cursor-grabbing');
+      scrollContainerRef.current.classList.add('snap-x', 'snap-mandatory');
+    }
+  };
+
+  const handleMouseUp = () => {
+    isDragging.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.classList.remove('cursor-grabbing');
+      scrollContainerRef.current.classList.add('snap-x', 'snap-mandatory');
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current || !scrollContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollContainerRef.current.offsetLeft;
+    const walk = (x - startX.current) * 1.5;
+    scrollContainerRef.current.scrollLeft = scrollLeft.current - walk;
+  };
+
+  const fetchPlans = async () => {
+    if (weeks.length === 0) return;
+    setLoading(true);
+    
+    const startIso = weeks[0].start.toISOString();
+    const endIso = weeks[weeks.length - 1].end.toISOString();
 
     const { data, error } = await supabase
       .from('visit_plans')
@@ -81,26 +135,28 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
       .order('planned_date', { ascending: true });
 
     if (!error && data) {
-      // -------------------------------------------------------------
-      // AUTO-COMPLETE LOGIC:
-      // If a user checked-in (created an order) for this company 
-      // during this same week, automatically mark the plan as completed.
-      // -------------------------------------------------------------
       const { data: weekOrders } = await supabase
         .from('orders')
-        .select('company_id, user_id')
+        .select('company_id, user_id, created_at')
         .gte('created_at', startIso)
         .lte('created_at', endIso);
 
       const processedPlans = data.map((plan: any) => {
         if (plan.status === 'pending' && weekOrders) {
-          const hasCheckIn = weekOrders.some(
-            (o: any) => o.company_id === plan.company_id && o.user_id === plan.user_id
-          );
-          if (hasCheckIn) {
-            // Update DB in background (Fire and forget)
-            supabase.from('visit_plans').update({ status: 'completed' }).eq('id', plan.id).then();
-            return { ...plan, status: 'completed' };
+          const planDate = new Date(plan.planned_date);
+          const planWeek = weeks.find(w => planDate >= w.start && planDate <= w.end);
+          
+          if (planWeek) {
+            const hasCheckIn = weekOrders.some(
+              (o: any) => {
+                const orderDate = new Date(o.created_at);
+                return o.company_id === plan.company_id && o.user_id === plan.user_id && orderDate >= planWeek.start && orderDate <= planWeek.end;
+              }
+            );
+            if (hasCheckIn) {
+              supabase.from('visit_plans').update({ status: 'completed' }).eq('id', plan.id).then();
+              return { ...plan, status: 'completed' };
+            }
           }
         }
         return plan;
@@ -116,7 +172,9 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
     
     // 1. Fetch User's Active Pipeline (Orders -> Order Items -> Projects)
     if (userData?.user) {
-      const { data: orders } = await supabase
+      console.log("Current Logged-in User ID:", userData.user.id);
+      
+      const { data: orders, error } = await supabase
         .from('orders')
         .select(`
           company_id,
@@ -129,6 +187,8 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
           )
         `)
         .eq('user_id', userData.user.id);
+        
+      console.log("Orders fetched for user:", orders?.length, "Error:", error);
 
       if (orders) {
         const compMap = new Map();
@@ -140,10 +200,12 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
           }
           const compData = compMap.get(cId);
           
+          // Increment count for every order (represents a visit)
+          compData.count += 1;
+          
           order.order_items?.forEach((item: any) => {
             item.order_item_projects?.forEach((proj: any) => {
               if (proj.project_name) {
-                compData.count += 1;
                 // Avoid duplicate projects by name
                 if (!compData.projects.find((p: any) => p.project_name === proj.project_name)) {
                   compData.projects.push({
@@ -158,8 +220,9 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
           });
         });
 
-        // Algorithm: Sort companies by the number of active projects they have
+        // Algorithm: Sort companies by the number of orders/visits (count)
         const pipeline = Array.from(compMap.values()).sort((a, b) => b.count - a.count);
+        console.log("Final Pipeline Size:", pipeline.length, "Pipeline Data:", pipeline);
         setPipelineData(pipeline);
       }
     }
@@ -228,33 +291,27 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
 
   useEffect(() => {
     fetchPlans();
-  }, [currentWeekStart]);
+  }, [weeks]);
+
+  useEffect(() => {
+    if (weeks.length > 0 && scrollContainerRef.current) {
+      // Index 4 is the current week (0 to 3 are past weeks)
+      const child = scrollContainerRef.current.children[4] as HTMLElement;
+      if (child) {
+        // Slight delay to ensure render is complete
+        setTimeout(() => {
+          scrollContainerRef.current?.scrollTo({ left: child.offsetLeft - 16, behavior: 'smooth' });
+        }, 100);
+      }
+    }
+  }, [weeks, plans.length]);
 
   useEffect(() => {
     fetchPipelineAndCompanies();
     fetchProjects();
   }, []);
 
-  const handlePrevWeek = () => {
-    const newDate = new Date(currentWeekStart);
-    newDate.setDate(newDate.getDate() - 7);
-    setCurrentWeekStart(newDate);
-  };
 
-  const handleNextWeek = () => {
-    const newDate = new Date(currentWeekStart);
-    newDate.setDate(newDate.getDate() + 7);
-    setCurrentWeekStart(newDate);
-  };
-
-  const getWeekLabel = () => {
-    const endOfWeek = new Date(currentWeekStart);
-    endOfWeek.setDate(endOfWeek.getDate() + 6);
-    
-    const startStr = currentWeekStart.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-    const endStr = endOfWeek.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-    return `${startStr} - ${endStr}`;
-  };
 
   const updateStatus = async (id: string, newStatus: string) => {
     const { error } = await supabase
@@ -352,80 +409,115 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-8 w-full">
+    <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-8 w-full">
       {/* Header */}
       <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 gap-4">
         <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
-          <Calendar className="text-indigo-600" /> แผนการเข้าพบลูกค้า (Weekly Visit Plan)
+          <Calendar className="text-indigo-600" /> แผนการเข้าพบลูกค้า (12 สัปดาห์)
         </h3>
         
         <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-          <div className="flex items-center gap-2 bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
-            <button onClick={handlePrevWeek} className="p-1 hover:bg-slate-100 rounded text-slate-600 transition">
-              <ChevronLeft size={20} />
-            </button>
-            <span className="text-sm font-bold text-slate-700 min-w-[120px] text-center">
-              {getWeekLabel()}
-            </span>
-            <button onClick={handleNextWeek} className="p-1 hover:bg-slate-100 rounded text-slate-600 transition">
-              <ChevronRight size={20} />
-            </button>
-          </div>
-          
           <button 
             onClick={() => {
               resetForm();
               setIsModalOpen(true);
             }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 text-sm transition-colors shadow-sm"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-none flex items-center gap-2 text-sm transition-colors shadow-sm"
           >
             <Plus size={16} /> สร้างแผน
           </button>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-0 sm:p-5 bg-slate-50/50 min-h-[300px] relative">
-        {loading ? (
+      {/* Content (Horizontal Board) */}
+      <div className="p-0 bg-slate-50/50 min-h-[300px] relative">
+        {loading && plans.length === 0 ? (
            <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-10">
              <Loader2 className="animate-spin text-indigo-500" size={32} />
            </div>
-        ) : plans.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Calendar size={48} className="text-slate-300 mb-4" />
-            <p className="text-slate-500 font-medium">ยังไม่มีแผนเข้าพบลูกค้าในสัปดาห์นี้</p>
-            <p className="text-slate-400 text-sm mt-1">กดปุ่ม "สร้างแผน" เพื่อเริ่มต้นวางแผนของคุณ</p>
-          </div>
         ) : (
-          <div className="flex flex-wrap gap-2 p-4 sm:p-0">
-            {plans.map((plan) => (
-              <div 
-                key={plan.id} 
-                onClick={() => setViewPlanDetail(plan)}
-                className={`flex items-center justify-between gap-2 p-2 rounded-xl border cursor-pointer hover:shadow-md hover:border-indigo-300 transition-all w-full sm:w-[260px] ${
-                  plan.status === 'completed' ? 'bg-emerald-50 border-emerald-200' : 
-                  plan.status === 'cancelled' ? 'bg-slate-50 border-slate-200 opacity-70' : 
-                  'bg-white border-slate-200'
-                }`}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className={`font-bold text-xs truncate ${plan.status === 'completed' ? 'text-emerald-800' : 'text-slate-700'}`}>
-                    {plan.companies?.name || 'ไม่ระบุบริษัท'}
-                  </p>
-                  {plan.projects?.project_name && (
-                    <p className={`text-[10px] truncate mt-0.5 ${plan.status === 'completed' ? 'text-emerald-600/70' : 'text-slate-500'}`}>
-                      {plan.projects.project_name}
-                    </p>
-                  )}
-                </div>
+          <div 
+            ref={scrollContainerRef}
+            onMouseDown={handleMouseDown}
+            onMouseLeave={handleMouseLeave}
+            onMouseUp={handleMouseUp}
+            onMouseMove={handleMouseMove}
+            className="flex gap-4 overflow-x-auto p-4 snap-x snap-mandatory cursor-grab [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] select-none" 
+          >
+            {weeks.map((week, index) => {
+              const weekPlans = plans.filter(p => {
+                const d = new Date(p.planned_date);
+                return d >= week.start && d <= week.end;
+              });
+              const isPast = index < 4;
+              const isCurrentWeek = index === 4;
+              const isFuture = index > 4;
+              
+              let headerColorClass = '';
+              let badgeElement = null;
+              
+              if (isPast) {
+                headerColorClass = 'bg-slate-200 text-slate-500 border-slate-300';
+                badgeElement = <span className="bg-slate-300 text-slate-700 text-[10px] px-2 py-0.5 rounded-none font-bold">ผ่านมาแล้ว</span>;
+              } else if (isCurrentWeek) {
+                headerColorClass = 'bg-indigo-50 text-indigo-800 border-indigo-500';
+                badgeElement = <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-none font-bold shadow-sm">สัปดาห์นี้</span>;
+              } else if (isFuture) {
+                headerColorClass = 'bg-sky-50 text-sky-700 border-sky-300';
+                badgeElement = <span className="bg-sky-200 text-sky-800 text-[10px] px-2 py-0.5 rounded-none font-bold">ล่วงหน้า</span>;
+              }
 
-                <div className="flex-shrink-0 flex items-center justify-center pl-2">
-                  {plan.status === 'completed' && <CheckCircle2 size={16} className="text-emerald-500" />}
-                  {plan.status === 'cancelled' && <XCircle size={16} className="text-slate-400" />}
-                  {plan.status === 'pending' && <Clock size={16} className="text-amber-500" />}
+              return (
+                <div key={index} className="flex-shrink-0 w-80 snap-start flex flex-col">
+                  <div className={`p-3 border-b-2 font-bold mb-3 sticky top-0 z-10 flex justify-between items-center ${headerColorClass}`}>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm">{week.label}</span>
+                      <div className="flex items-center gap-2">
+                        {badgeElement}
+                      </div>
+                    </div>
+                    <span className="text-xs bg-white/60 px-2 py-0.5 font-bold rounded-none border border-black/10">{weekPlans.length}</span>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2 min-h-[150px] bg-slate-50/50 p-2 border border-slate-100 h-full">
+                    {weekPlans.length === 0 ? (
+                       <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                          <Calendar size={32} className="opacity-20 mb-2" />
+                          <span className="text-xs">ไม่มีแผน</span>
+                       </div>
+                    ) : (
+                      weekPlans.map(plan => (
+                        <div 
+                          key={plan.id} 
+                          onClick={() => setViewPlanDetail(plan)}
+                          className={`flex items-center justify-between gap-2 p-2.5 border cursor-pointer hover:shadow-md transition-all rounded-none w-full ${
+                            plan.status === 'completed' ? 'bg-emerald-50 border-emerald-200' : 
+                            plan.status === 'cancelled' ? 'bg-slate-50 border-slate-200 opacity-70' : 
+                            'bg-white border-slate-200 hover:border-indigo-300'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-bold text-[13px] truncate ${plan.status === 'completed' ? 'text-emerald-800' : 'text-slate-700'}`}>
+                              {plan.companies?.name || 'ไม่ระบุบริษัท'}
+                            </p>
+                            {plan.projects?.project_name && (
+                              <p className={`text-[10px] truncate mt-0.5 ${plan.status === 'completed' ? 'text-emerald-600/70' : 'text-slate-500'}`}>
+                                {plan.projects.project_name}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0 flex items-center justify-center pl-2">
+                            {plan.status === 'completed' && <CheckCircle2 size={16} className="text-emerald-500" />}
+                            {plan.status === 'cancelled' && <XCircle size={16} className="text-slate-400" />}
+                            {plan.status === 'pending' && <Clock size={16} className="text-amber-500" />}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -686,13 +778,13 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
       {/* View Details Modal */}
       {viewPlanDetail && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setViewPlanDetail(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-none w-full max-w-md shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center p-5 border-b border-slate-100">
               <h3 className="font-bold text-xl text-slate-800">รายละเอียดแผนงาน</h3>
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => handleEditPlan(viewPlanDetail)}
-                  className="text-indigo-600 hover:text-indigo-800 text-sm font-bold bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded transition"
+                  className="text-indigo-600 hover:text-indigo-800 text-sm font-bold bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-none transition"
                 >
                   แก้ไข
                 </button>
@@ -703,14 +795,16 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
             </div>
             
             <div className="p-6 flex flex-col gap-5">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                  <Building2 size={20} className="text-indigo-500" />
+              <div className="flex items-start justify-between gap-4">
+                <span className="font-bold text-lg text-slate-800 flex items-start gap-2 leading-tight">
+                  <Building2 size={20} className="text-indigo-500 flex-shrink-0 mt-0.5" />
                   {viewPlanDetail.companies?.name || 'ไม่ระบุบริษัท'}
                 </span>
-                {viewPlanDetail.status === 'completed' && <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">สำเร็จแล้ว</span>}
-                {viewPlanDetail.status === 'cancelled' && <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">ยกเลิก</span>}
-                {viewPlanDetail.status === 'pending' && <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">รอดำเนินการ</span>}
+                <div className="flex-shrink-0 pt-0.5">
+                  {viewPlanDetail.status === 'completed' && <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-none text-xs font-bold whitespace-nowrap">สำเร็จแล้ว</span>}
+                  {viewPlanDetail.status === 'cancelled' && <span className="bg-red-100 text-red-700 px-3 py-1 rounded-none text-xs font-bold whitespace-nowrap">ยกเลิก</span>}
+                  {viewPlanDetail.status === 'pending' && <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-none text-xs font-bold whitespace-nowrap">รอดำเนินการ</span>}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -731,7 +825,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
               </div>
 
               {(viewPlanDetail.projects?.project_name || viewPlanDetail.project_types?.name || viewPlanDetail.product_categories?.name) && (
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div className="bg-slate-50 p-4 rounded-none border border-slate-100">
                   <p className="font-bold text-slate-700 mb-3 text-sm">ข้อมูลโครงการ</p>
                   <div className="flex flex-col gap-2 text-sm">
                     {viewPlanDetail.projects?.project_name && (
@@ -759,7 +853,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
               {viewPlanDetail.project_concept && (
                 <div>
                   <p className="text-slate-500 mb-1.5 text-sm">แนวโครงการ / โน้ตเพิ่มเติม</p>
-                  <div className="bg-amber-50/50 border border-amber-100 p-3 rounded-lg text-sm text-slate-700 italic">
+                  <div className="bg-amber-50/50 border border-amber-100 p-3 rounded-none text-sm text-slate-700 italic">
                     "{viewPlanDetail.project_concept}"
                   </div>
                 </div>
