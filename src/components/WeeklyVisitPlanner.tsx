@@ -54,6 +54,39 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
   const startX = useRef(0);
   const scrollLeft = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollContainerRef.current) return;
+    isDragging.current = true;
+    scrollContainerRef.current.classList.add('cursor-grabbing');
+    scrollContainerRef.current.classList.remove('snap-x', 'snap-mandatory');
+    startX.current = e.pageX - scrollContainerRef.current.offsetLeft;
+    scrollLeft.current = scrollContainerRef.current.scrollLeft;
+  };
+
+  const handleMouseLeave = () => {
+    isDragging.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.classList.remove('cursor-grabbing');
+      scrollContainerRef.current.classList.add('snap-x', 'snap-mandatory');
+    }
+  };
+
+  const handleMouseUp = () => {
+    isDragging.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.classList.remove('cursor-grabbing');
+      scrollContainerRef.current.classList.add('snap-x', 'snap-mandatory');
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current || !scrollContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollContainerRef.current.offsetLeft;
+    const walk = (x - startX.current) * 1.5;
+    scrollContainerRef.current.scrollLeft = scrollLeft.current - walk;
+  };
   
   // Helper: คำนวณวันจันทร์ของสัปดาห์นั้น
   const getMonday = (date: Date) => {
