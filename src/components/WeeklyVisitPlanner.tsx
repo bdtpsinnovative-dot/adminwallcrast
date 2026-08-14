@@ -522,7 +522,8 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
                             )}
                             <div className="flex items-center justify-between gap-1.5 mt-2 pt-2 border-t border-black/5 text-[11px]">
                               <span className="font-semibold text-emerald-600 flex items-center gap-1">
-                                📅 {new Date(plan.planned_date).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                <Clock size={12} className="text-emerald-500" />
+                                {new Date(plan.planned_date).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
                               </span>
                               <span className="text-[10px] text-slate-400 truncate max-w-[100px]" title={plan.profiles?.full_name || ''}>
                                 {plan.profiles?.full_name || 'ไม่ระบุ'}
@@ -579,7 +580,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
                   <input
                     type="text"
                     required={!selectedCompany}
-                    placeholder="พิมพ์ค้นหา หรือเลือกจากบริษัทที่คุณดูแลอยู่..."
+                    placeholder="พิมพ์ค้นหา หรือเลือกจากบริษัท..."
                     value={companySearch}
                     onChange={(e) => {
                       setCompanySearch(e.target.value);
@@ -610,7 +611,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
                           return (
                             <>
                               {filteredPipeline.length > 0 && (
-                                <div className="px-3 py-2 bg-slate-50 font-bold text-xs text-slate-500">🌟 บริษัทที่คุณดูแลอยู่ (My Pipeline)</div>
+                                <div className="px-3 py-2 bg-slate-50 font-bold text-xs text-slate-500">บริษัทที่ดูแลอยู่</div>
                               )}
                               {filteredPipeline.map(p => (
                                 <div 
@@ -623,14 +624,14 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
                                   className={`p-3 text-sm cursor-pointer hover:bg-indigo-50 border-b border-slate-50 last:border-0 flex justify-between items-center ${selectedCompany === p.company.id ? 'bg-indigo-50 font-bold text-indigo-700' : 'text-slate-700'}`}
                                 >
                                   <span>{p.company.name}</span>
-                                  <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                                    {p.projects.length} โปรเจ็กต์
+                                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                                    {p.projects.length} โครงการ
                                   </span>
                                 </div>
                               ))}
                               
                               {otherCompanies.length > 0 && (
-                                <div className="px-3 py-2 bg-slate-50 font-bold text-xs text-slate-500">🏢 บริษัทอื่นๆ</div>
+                                <div className="px-3 py-2 bg-slate-50 font-bold text-xs text-slate-500">บริษัททั่วไป</div>
                               )}
                               {otherCompanies.slice(0, visibleCompanyCount).map(c => (
                                 <div 
@@ -655,7 +656,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">โครงการ (Project จากระบบ)</label>
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">โครงการ</label>
                 <div className="relative">
                   <input
                     type="text"
@@ -700,7 +701,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
                               </div>
                               
                               {pipelineProjs.length > 0 && (
-                                <div className="px-3 py-2 bg-slate-50 font-bold text-xs text-slate-500">🌟 โครงการที่ทำกับบริษัทนี้</div>
+                                <div className="px-3 py-2 bg-slate-50 font-bold text-xs text-slate-500">โครงการที่ทำกับบริษัทนี้</div>
                               )}
                               {pipelineProjs.map(p => (
                                 <div 
