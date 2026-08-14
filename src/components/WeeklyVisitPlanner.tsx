@@ -4,18 +4,20 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Calendar, CheckCircle2, XCircle, Plus, ChevronLeft, ChevronRight, 
-  Clock, Building2, User, Loader2, X
+  Clock, Building2, User, Loader2, X, Filter
 } from 'lucide-react';
 
 interface Props {
   projectTypes: any[];
   productCategories: any[];
   currentUserRole: string;
+  profiles?: any[];
 }
 
-export default function WeeklyVisitPlanner({ projectTypes, productCategories, currentUserRole }: Props) {
+export default function WeeklyVisitPlanner({ projectTypes, productCategories, currentUserRole, profiles = [] }: Props) {
   const [weeks, setWeeks] = useState<{ start: Date, end: Date, label: string }[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [companies, setCompanies] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -445,23 +447,67 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
     }
   };
 
-  const currentMondayTime = getMonday(new Date()).getTime();
+  const validProfiles = useMemo(() => {
+    return profiles.filter(p => {
+      const name = (p.full_name || p.username || '').trim();
+      return name.length > 0 && name !== 'ไม่มีชื่อ';
+    });
+  }, [profiles]);
+
+  const filteredPlans = useMemo(() => {
+    if (selectedUserId === 'all') return plans;
+    return plans.filter(p => p.user_id === selectedUserId || p.profiles?.id === selectedUserId);
+  }, [plans, selectedUserId]);
+
+  const selectedProfileObj = useMemo(() => {
+    return validProfiles.find(p => p.id === selectedUserId);
+  }, [validProfiles, selectedUserId]);
 
   return (
     <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-8 w-full">
       {/* Header */}
       <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 gap-4">
-        <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
-          <Calendar className="text-indigo-600" /> แผนการเข้าพบลูกค้า
-        </h3>
+        <div className="flex items-center gap-3">
+          <Calendar className="text-indigo-600" />
+          <div>
+            <h3 className="font-bold text-slate-800 text-lg">
+              แผนการเข้าพบลูกค้า
+            </h3>
+            {selectedUserId !== 'all' && selectedProfileObj && (
+              <p className="text-xs font-semibold text-emerald-600">
+                กำลังดูแผนงานของ: {selectedProfileObj.full_name}
+              </p>
+            )}
+          </div>
+        </div>
         
-        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          {/* 🔍 ฟิลเตอร์เลือกดูตามเซลส์ */}
+          <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-none text-xs shadow-sm">
+            {selectedProfileObj?.avatar_url ? (
+              <img src={selectedProfileObj.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+            ) : (
+              <User size={14} className="text-slate-400" />
+            )}
+            <span className="text-slate-500 font-medium">ดูตามเซลส์:</span>
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="bg-transparent font-bold text-slate-800 outline-none cursor-pointer"
+            >
+              <option value="all">ทั้งหมด (ทุกคน)</option>
+              {validProfiles.map(p => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
+              ))}
+            </select>
+          </div>
+
           <button 
             onClick={() => {
               resetForm();
               setIsModalOpen(true);
             }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-none flex items-center gap-2 text-sm transition-colors shadow-sm"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-none flex items-center gap-2 text-sm transition-colors shadow-sm cursor-pointer"
           >
             <Plus size={16} /> สร้างแผน
           </button>
@@ -484,7 +530,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
             className="flex gap-4 overflow-x-auto p-4 snap-x snap-mandatory cursor-grab [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] select-none" 
           >
             {weeks.map((week, index) => {
-              const weekPlans = plans.filter(p => {
+              const weekPlans = filteredPlans.filter(p => {
                 const d = new Date(p.planned_date);
                 return d >= week.start && d <= week.end;
               });

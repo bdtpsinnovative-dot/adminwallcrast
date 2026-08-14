@@ -756,6 +756,7 @@ export default function DashboardClientContainer({
             projectTypes={projectTypes} 
             productCategories={productCategories} 
             currentUserRole={currentUserRole}
+            profiles={profiles || []}
           />
           
           <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-8 w-full">
