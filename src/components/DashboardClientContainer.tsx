@@ -757,6 +757,7 @@ export default function DashboardClientContainer({
             productCategories={productCategories} 
             currentUserRole={currentUserRole}
             profiles={profiles || []}
+            filterSales={filterSales}
           />
           
           <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-8 w-full">

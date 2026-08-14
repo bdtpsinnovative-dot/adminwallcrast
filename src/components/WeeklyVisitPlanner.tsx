@@ -12,9 +12,16 @@ interface Props {
   productCategories: any[];
   currentUserRole: string;
   profiles?: any[];
+  filterSales?: string;
 }
 
-export default function WeeklyVisitPlanner({ projectTypes, productCategories, currentUserRole, profiles = [] }: Props) {
+export default function WeeklyVisitPlanner({ 
+  projectTypes, 
+  productCategories, 
+  currentUserRole, 
+  profiles = [],
+  filterSales = 'ALL'
+}: Props) {
   const [weeks, setWeeks] = useState<{ start: Date, end: Date, label: string }[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
@@ -447,6 +454,8 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
     }
   };
 
+  const activeSalesFilter = filterSales !== 'ALL' ? filterSales : selectedUserId;
+
   const validProfiles = useMemo(() => {
     return profiles.filter(p => {
       const name = (p.full_name || p.username || '').trim();
@@ -455,13 +464,13 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
   }, [profiles]);
 
   const filteredPlans = useMemo(() => {
-    if (selectedUserId === 'all') return plans;
-    return plans.filter(p => p.user_id === selectedUserId || p.profiles?.id === selectedUserId);
-  }, [plans, selectedUserId]);
+    if (activeSalesFilter === 'all' || activeSalesFilter === 'ALL') return plans;
+    return plans.filter(p => p.user_id === activeSalesFilter || p.profiles?.id === activeSalesFilter);
+  }, [plans, activeSalesFilter]);
 
   const selectedProfileObj = useMemo(() => {
-    return validProfiles.find(p => p.id === selectedUserId);
-  }, [validProfiles, selectedUserId]);
+    return validProfiles.find(p => p.id === activeSalesFilter);
+  }, [validProfiles, activeSalesFilter]);
 
   const currentMondayTime = getMonday(new Date()).getTime();
 
@@ -475,35 +484,15 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
             <h3 className="font-bold text-slate-800 text-lg">
               แผนการเข้าพบลูกค้า
             </h3>
-            {selectedUserId !== 'all' && selectedProfileObj && (
+            {activeSalesFilter !== 'all' && activeSalesFilter !== 'ALL' && selectedProfileObj && (
               <p className="text-xs font-semibold text-emerald-600">
-                กำลังดูแผนงานของ: {selectedProfileObj.full_name}
+                กรองตามเซลส์: {selectedProfileObj.full_name}
               </p>
             )}
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-          {/* 🔍 ฟิลเตอร์เลือกดูตามเซลส์ */}
-          <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-none text-xs shadow-sm">
-            {selectedProfileObj?.avatar_url ? (
-              <img src={selectedProfileObj.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
-            ) : (
-              <User size={14} className="text-slate-400" />
-            )}
-            <span className="text-slate-500 font-medium">ดูตามเซลส์:</span>
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="bg-transparent font-bold text-slate-800 outline-none cursor-pointer"
-            >
-              <option value="all">ทั้งหมด (ทุกคน)</option>
-              {validProfiles.map(p => (
-                <option key={p.id} value={p.id}>{p.full_name}</option>
-              ))}
-            </select>
-          </div>
-
+        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
           <button 
             onClick={() => {
               resetForm();
