@@ -748,14 +748,15 @@ export default function DashboardClientContainer({
                     <th className="px-5 py-3 border border-slate-200 text-center w-16">Type</th>
                     <th className="px-5 py-3 border border-slate-200">Company Name</th>
                     <th className="px-5 py-3 border border-slate-200 text-center">ความถี่ (เช็คอิน)</th>
-                    <th className="px-5 py-3 border border-slate-200 text-left">จำนวน/รายชื่อโปรเจค</th>
+                    <th className="px-5 py-3 border border-slate-200 text-center">จำนวนโปรเจค</th>
+                    <th className="px-5 py-3 border border-slate-200 text-left">รายชื่อโปรเจค</th>
                     <th className="px-5 py-3 border border-slate-200 text-right">SQM รวม</th>
                   </tr>
                 </thead>
                 <tbody>
                   {repeatedVisitsData.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-5 py-8 text-center text-slate-400 italic border border-slate-200">ไม่มีบริษัทที่เข้าพบ 3 ครั้งขึ้นไปในช่วงเวลานี้</td>
+                      <td colSpan={6} className="px-5 py-8 text-center text-slate-400 italic border border-slate-200">ไม่มีบริษัทที่เข้าพบ 3 ครั้งขึ้นไปในช่วงเวลานี้</td>
                     </tr>
                   ) : (
                     repeatedVisitsData.slice(0, visibleRepeatedVisits).map((comp, index) => (
@@ -767,11 +768,13 @@ export default function DashboardClientContainer({
                         <td className="px-5 py-3 text-center text-slate-700 border border-slate-200">
                           {comp.count}
                         </td>
+                        <td className="px-5 py-3 text-center border border-slate-200 align-top">
+                          <span className="font-bold text-slate-800 text-sm">
+                            {comp.uniqueProjects.size}
+                          </span>
+                        </td>
                         <td className="px-5 py-3 text-left border border-slate-200 align-top">
-                          <div className="font-semibold text-slate-700 mb-1.5">
-                            {comp.uniqueProjects.size} {comp.uniqueProjects.size > 0 && <span className="text-xs font-normal text-slate-500 ml-1">โปรเจค</span>}
-                          </div>
-                          {comp.uniqueProjects.size > 0 && (
+                          {comp.uniqueProjects.size > 0 ? (
                             <div className="flex flex-col gap-1">
                               {Array.from(comp.uniqueProjects.entries()).map(([projName, dateVal], i) => (
                                 <div key={i} className="flex items-start gap-1.5 mb-1.5 last:mb-0">
@@ -782,6 +785,8 @@ export default function DashboardClientContainer({
                                 </div>
                               ))}
                             </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs italic">-</span>
                           )}
                         </td>
                         <td className="px-5 py-3 text-right font-medium text-emerald-600 border border-slate-200">
