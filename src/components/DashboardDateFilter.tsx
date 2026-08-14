@@ -95,6 +95,8 @@ const formatLocal = (d: Date) => {
     activePreset = '90DAYS';
   } else if (urlStart === thirtyDaysAgoStr && urlEnd === todayStr) {
     activePreset = '30DAYS';
+  } else if (urlStart === ninetyDaysAgoStr && urlEnd === todayStr) {
+    activePreset = '90DAYS';
   } else if (urlStart === firstDayOfMonth && urlEnd === lastDayOfMonth) {
     activePreset = 'THIS_MONTH';
   } else if (urlStart === allTimeStart) {
@@ -105,8 +107,8 @@ const formatLocal = (d: Date) => {
     const params = new URLSearchParams(searchParams.toString());
     
     if (preset === '30DAYS') {
-      params.delete('start');
-      params.delete('end');
+      params.set('start', thirtyDaysAgoStr);
+      params.set('end', todayStr);
     } else if (preset === '90DAYS') {
       params.set('start', ninetyDaysAgoStr);
       params.set('end', todayStr);
