@@ -785,17 +785,14 @@ export default function DashboardClientContainer({
                             <span className="text-slate-300 text-xs font-medium">0</span>
                           )}
                         </td>
-                        <td className="px-5 py-3 text-left align-middle">
+                        <td className="px-5 py-3.5 text-left align-middle">
                           {comp.uniqueProjects.size > 0 ? (
-                            <div className="flex flex-wrap gap-1.5 py-1">
+                            <div className="flex flex-col gap-1.5 py-0.5">
                               {Array.from(comp.uniqueProjects.entries()).map(([projName, dateVal], i) => (
-                                <div 
-                                  key={i} 
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-slate-700 text-xs hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors"
-                                >
-                                  <Folder size={12} className="text-indigo-500 shrink-0" />
-                                  <span className="font-medium">{projName}</span>
-                                  <span className="text-slate-400 text-[10px]">
+                                <div key={i} className="flex items-center gap-2 text-xs">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+                                  <span className="font-semibold text-slate-700">{projName}</span>
+                                  <span className="text-slate-400 text-[11px]">
                                     ({new Date(dateVal).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })})
                                   </span>
                                 </div>
