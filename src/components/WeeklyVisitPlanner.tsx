@@ -15,6 +15,44 @@ interface Props {
 
 export default function WeeklyVisitPlanner({ projectTypes, productCategories, currentUserRole }: Props) {
   const [weeks, setWeeks] = useState<{ start: Date, end: Date, label: string }[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Modal Form State
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedProject, setSelectedProject] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedProjectType, setSelectedProjectType] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [concept, setConcept] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [viewPlanDetail, setViewPlanDetail] = useState<any | null>(null);
+
+  // Pipeline Data State (Algorithm)
+  const [pipelineData, setPipelineData] = useState<any[]>([]);
+
+  const pipelineProjIds = useMemo(() => {
+    const comp = pipelineData.find(p => p.company.id === selectedCompany);
+    return new Set(comp ? comp.projects.map((p: any) => p.id) : []);
+  }, [selectedCompany, pipelineData]);
+  
+  // Combobox State
+  const [companySearch, setCompanySearch] = useState('');
+  const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
+  const [visibleCompanyCount, setVisibleCompanyCount] = useState(50);
+  
+  const [projectSearch, setProjectSearch] = useState('');
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+  const [visibleProjectCount, setVisibleProjectCount] = useState(50);
+
+  // Drag to scroll logic
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // Helper: คำนวณวันจันทร์ของสัปดาห์นั้น
