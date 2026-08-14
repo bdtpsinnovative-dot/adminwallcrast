@@ -494,13 +494,19 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
                     <span className="text-xs bg-white/60 px-2 py-0.5 font-bold rounded-none border border-black/10">{weekPlans.length}</span>
                   </div>
                   
-                  <div className="flex flex-col gap-2 min-h-[150px] bg-slate-50/50 p-2 border border-slate-100 h-full">
-                    {weekPlans.length === 0 ? (
-                       <div className="flex flex-col items-center justify-center py-10 text-slate-400">
-                          <Calendar size={32} className="opacity-20 mb-2" />
-                          <span className="text-xs">ไม่มีแผน</span>
-                       </div>
-                    ) : (
+                    <div className="flex flex-col gap-2 min-h-[150px] bg-slate-50/50 p-2 border border-slate-100 h-full">
+                      {weekPlans.length === 0 ? (
+                         <div className="flex flex-col items-center justify-center py-10 text-slate-400 text-center px-4">
+                            <Calendar size={28} className="opacity-20 mb-2" />
+                            <span className="text-xs font-medium leading-relaxed">
+                              {index === 0
+                                ? "ไม่มีแผนงานที่เก่ากว่านี้"
+                                : index === weeks.length - 1
+                                ? "ไม่มีแผนที่ใหม่กว่านี้\nสามารถสร้างแผนใหม่ได้"
+                                : "ไม่มีแผนเข้าพบ"}
+                            </span>
+                         </div>
+                      ) : (
                       weekPlans.map(plan => (
                         <div 
                           key={plan.id} 
