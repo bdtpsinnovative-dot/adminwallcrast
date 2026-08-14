@@ -132,7 +132,7 @@ export default function DashboardClientContainer({
   const [projects, setProjects] = useState<any[]>([]);
   const [minFetched, setMinFetched] = useState<string | null>(null);
   const [maxFetched, setMaxFetched] = useState<string | null>(null);
-  const [visibleRepeatedVisits, setVisibleRepeatedVisits] = useState(10);
+  const [visibleRepeatedVisits, setVisibleRepeatedVisits] = useState(25);
 
   // 🔍 State สำหรับฟิลเตอร์ตารางผลการเข้าพบซ้ำโดยเฉพาะ (ดึงมาทั้งหมด เริ่มต้นที่ 1 ครั้งขึ้นไป)
   const [repeatedSearch, setRepeatedSearch] = useState('');
@@ -910,12 +910,15 @@ export default function DashboardClientContainer({
                 </tbody>
               </table>
               {repeatedVisitsData.length > visibleRepeatedVisits && (
-                <div className="p-4 flex justify-center bg-white border-t border-slate-100">
+                <div className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white border-t border-slate-100 px-6">
+                  <span className="text-xs text-slate-500 font-medium">
+                    แสดง {Math.min(visibleRepeatedVisits, repeatedVisitsData.length)} จากทั้งหมด {repeatedVisitsData.length} บริษัท
+                  </span>
                   <button 
-                    onClick={() => setVisibleRepeatedVisits(prev => prev + 10)}
-                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-sm transition-colors shadow-sm"
+                    onClick={() => setVisibleRepeatedVisits(prev => prev + 25)}
+                    className="px-5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
                   >
-                    โหลดเพิ่มเติม (Load More)
+                    โหลดเพิ่มอีก 25 รายการ (+25)
                   </button>
                 </div>
               )}
