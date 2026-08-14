@@ -743,54 +743,76 @@ export default function DashboardClientContainer({
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left whitespace-nowrap text-sm border-collapse border border-slate-200">
-                <thead className="bg-slate-100 text-slate-600 text-xs uppercase font-bold tracking-wider">
+                <thead className="bg-slate-50 text-slate-600 text-xs font-bold border-b border-slate-200">
                   <tr>
-                    <th className="px-5 py-3 border border-slate-200 text-center w-16">Type</th>
-                    <th className="px-5 py-3 border border-slate-200">Company Name</th>
-                    <th className="px-5 py-3 border border-slate-200 text-center">ความถี่ (เช็คอิน)</th>
-                    <th className="px-5 py-3 border border-slate-200 text-center">จำนวนโปรเจค</th>
-                    <th className="px-5 py-3 border border-slate-200 text-left">รายชื่อโปรเจค</th>
-                    <th className="px-5 py-3 border border-slate-200 text-right">SQM รวม</th>
+                    <th className="px-4 py-3.5 text-center w-14 text-slate-400 font-semibold">#</th>
+                    <th className="px-5 py-3.5 text-left font-bold text-slate-700 min-w-[200px]">บริษัท</th>
+                    <th className="px-4 py-3.5 text-center font-bold text-slate-700 w-32">เช็คอิน (ครั้ง)</th>
+                    <th className="px-4 py-3.5 text-center font-bold text-slate-700 w-32">จำนวนโปรเจกต์</th>
+                    <th className="px-5 py-3.5 text-left font-bold text-slate-700 min-w-[280px]">รายชื่อโปรเจกต์</th>
+                    <th className="px-5 py-3.5 text-right font-bold text-slate-700 w-28">SQM รวม</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {repeatedVisitsData.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-5 py-8 text-center text-slate-400 italic border border-slate-200">ไม่มีบริษัทที่เข้าพบ 3 ครั้งขึ้นไปในช่วงเวลานี้</td>
+                      <td colSpan={6} className="px-5 py-10 text-center text-slate-400 text-sm">
+                        ไม่มีบริษัทที่เข้าพบ 3 ครั้งขึ้นไปในช่วงเวลานี้
+                      </td>
                     </tr>
                   ) : (
                     repeatedVisitsData.slice(0, visibleRepeatedVisits).map((comp, index) => (
-                      <tr key={comp.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-3 text-center text-slate-500 border border-slate-200">
+                      <tr key={comp.id} className="hover:bg-indigo-50/30 transition-colors">
+                        <td className="px-4 py-3 text-center text-slate-400 text-xs font-medium align-middle">
                           {index + 1}
                         </td>
-                        <td className="px-5 py-3 font-medium text-slate-700 border border-slate-200">{comp.name}</td>
-                        <td className="px-5 py-3 text-center text-slate-700 border border-slate-200">
-                          {comp.count}
-                        </td>
-                        <td className="px-5 py-3 text-center border border-slate-200 align-top">
-                          <span className="font-bold text-slate-800 text-sm">
-                            {comp.uniqueProjects.size}
+                        <td className="px-5 py-3 align-middle">
+                          <span className="font-semibold text-slate-800 text-[13px] block">
+                            {comp.name}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-left border border-slate-200 align-top">
+                        <td className="px-4 py-3 text-center align-middle">
+                          <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 font-bold text-xs">
+                            {comp.count}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center align-middle">
                           {comp.uniqueProjects.size > 0 ? (
-                            <div className="flex flex-col gap-1">
+                            <span className="inline-flex items-center justify-center min-w-[32px] px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200/50">
+                              {comp.uniqueProjects.size}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 text-xs font-medium">0</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-left align-middle">
+                          {comp.uniqueProjects.size > 0 ? (
+                            <div className="flex flex-wrap gap-1.5 py-1">
                               {Array.from(comp.uniqueProjects.entries()).map(([projName, dateVal], i) => (
-                                <div key={i} className="flex items-start gap-1.5 mb-1.5 last:mb-0">
-                                  <Folder size={13} className="text-indigo-500 mt-[2px] shrink-0" />
-                                  <span className="text-[13px] text-slate-600 whitespace-normal break-words leading-tight flex-1">
-                                    {projName} <span className="text-slate-400 text-[11px] whitespace-nowrap ml-1">({new Date(dateVal).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })})</span>
+                                <div 
+                                  key={i} 
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-slate-700 text-xs hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors"
+                                >
+                                  <Folder size={12} className="text-indigo-500 shrink-0" />
+                                  <span className="font-medium">{projName}</span>
+                                  <span className="text-slate-400 text-[10px]">
+                                    ({new Date(dateVal).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })})
                                   </span>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <span className="text-slate-400 text-xs italic">-</span>
+                            <span className="text-slate-300 text-xs italic">-</span>
                           )}
                         </td>
-                        <td className="px-5 py-3 text-right font-medium text-emerald-600 border border-slate-200">
-                          {comp.totalSqm.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        <td className="px-5 py-3 text-right align-middle font-bold text-slate-700 text-xs">
+                          {comp.totalSqm > 0 ? (
+                            <span className="text-emerald-600 font-semibold">
+                              {comp.totalSqm.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">0</span>
+                          )}
                         </td>
                       </tr>
                     ))
