@@ -134,10 +134,10 @@ export default function DashboardClientContainer({
   const [maxFetched, setMaxFetched] = useState<string | null>(null);
   const [visibleRepeatedVisits, setVisibleRepeatedVisits] = useState(10);
 
-  // 🔍 State สำหรับฟิลเตอร์ตารางผลการเข้าพบซ้ำโดยเฉพาะ
+  // 🔍 State สำหรับฟิลเตอร์ตารางผลการเข้าพบซ้ำโดยเฉพาะ (ดึงมาทั้งหมด เริ่มต้นที่ 1 ครั้งขึ้นไป)
   const [repeatedSearch, setRepeatedSearch] = useState('');
   const [repeatedProjectFilter, setRepeatedProjectFilter] = useState<'ALL' | 'HAS_PROJECT' | 'NO_PROJECT'>('ALL');
-  const [repeatedMinCount, setRepeatedMinCount] = useState<number>(3);
+  const [repeatedMinCount, setRepeatedMinCount] = useState<number>(1);
 
   // Load from cache on mount
   useEffect(() => {
@@ -763,11 +763,11 @@ export default function DashboardClientContainer({
               <div className="flex items-center gap-2">
                 <Users className="text-indigo-600" />
                 <h3 className="font-bold text-slate-800 text-lg">
-                  ผลการเข้าพบซ้ำ ({repeatedVisitsData.length} บริษัท)
+                  รายชื่อบริษัทที่เข้าพบ ({repeatedVisitsData.length} บริษัท)
                 </h3>
               </div>
 
-              {/* 🎛️ ชุดเครื่องมือฟิลเตอร์ตารางเข้าพบซ้ำ */}
+              {/* 🎛️ ชุดเครื่องมือฟิลเตอร์ตารางเข้าพบ */}
               <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
                 {/* 1. ค้นหาชื่อบริษัท / โครงการ */}
                 <div className="relative flex-1 sm:w-64">
@@ -825,9 +825,9 @@ export default function DashboardClientContainer({
                     onChange={(e) => setRepeatedMinCount(Number(e.target.value))}
                     className="bg-transparent font-bold text-slate-800 outline-none cursor-pointer"
                   >
-                    <option value={1}>1 ครั้งขึ้นไป</option>
+                    <option value={1}>ทั้งหมด (1 ครั้งขึ้นไป)</option>
                     <option value={2}>2 ครั้งขึ้นไป</option>
-                    <option value={3}>3 ครั้งขึ้นไป (มาตรฐาน)</option>
+                    <option value={3}>3 ครั้งขึ้นไป</option>
                     <option value={5}>5 ครั้งขึ้นไป</option>
                     <option value={10}>10 ครั้งขึ้นไป (VIP)</option>
                   </select>
@@ -850,7 +850,7 @@ export default function DashboardClientContainer({
                   {repeatedVisitsData.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-5 py-10 text-center text-slate-400 text-sm">
-                        ไม่มีบริษัทที่เข้าพบ 3 ครั้งขึ้นไปในช่วงเวลานี้
+                        ไม่มีข้อมูลบริษัทที่เข้าพบในช่วงเวลานี้
                       </td>
                     </tr>
                   ) : (
