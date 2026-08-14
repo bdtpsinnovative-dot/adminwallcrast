@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   LayoutDashboard, ShoppingCart, Clock, TrendingUp, 
   Calendar, Users, Map as MapIcon, Activity, AlertCircle, Star, Target, Database, MapPin, Building2, Scaling,
-  ChevronRight, Smartphone, FileText, Loader2, Folder
+  ChevronRight, Smartphone, FileText, Loader2, Folder, Search, Filter as FilterIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import VipPipelineTable from '@/components/VipPipelineTable';
@@ -133,6 +133,11 @@ export default function DashboardClientContainer({
   const [minFetched, setMinFetched] = useState<string | null>(null);
   const [maxFetched, setMaxFetched] = useState<string | null>(null);
   const [visibleRepeatedVisits, setVisibleRepeatedVisits] = useState(10);
+
+  // 🔍 State สำหรับฟิลเตอร์ตารางผลการเข้าพบซ้ำโดยเฉพาะ
+  const [repeatedSearch, setRepeatedSearch] = useState('');
+  const [repeatedProjectFilter, setRepeatedProjectFilter] = useState<'ALL' | 'HAS_PROJECT' | 'NO_PROJECT'>('ALL');
+  const [repeatedMinCount, setRepeatedMinCount] = useState<number>(3);
 
   // Load from cache on mount
   useEffect(() => {
@@ -377,10 +382,28 @@ export default function DashboardClientContainer({
   }, [allActiveProjects, profileMap]);
 
   const repeatedVisitsData = useMemo(() => {
+    const searchLower = repeatedSearch.toLowerCase().trim();
+
     return Object.values(companyStats)
-      .filter(comp => comp.count >= 3)
+      .filter(comp => {
+        // 1. กรองตามความถี่ขั้นต่ำ
+        if (comp.count < repeatedMinCount) return false;
+
+        // 2. กรองตามการมีโปรเจกต์
+        if (repeatedProjectFilter === 'HAS_PROJECT' && comp.uniqueProjects.size === 0) return false;
+        if (repeatedProjectFilter === 'NO_PROJECT' && comp.uniqueProjects.size > 0) return false;
+
+        // 3. กรองตามคำค้นหา (ชื่อบริษัท หรือ ชื่อโปรเจกต์)
+        if (searchLower) {
+          const matchCompanyName = comp.name.toLowerCase().includes(searchLower);
+          const matchProjectName = Array.from(comp.uniqueProjects.keys()).some(pName => pName.toLowerCase().includes(searchLower));
+          if (!matchCompanyName && !matchProjectName) return false;
+        }
+
+        return true;
+      })
       .sort((a, b) => b.count - a.count);
-  }, [companyStats]);
+  }, [companyStats, repeatedMinCount, repeatedProjectFilter, repeatedSearch]);
 
   const uniqueSalesNamesForChart = useMemo(() => {
     const set = new Set<string>();
@@ -736,10 +759,80 @@ export default function DashboardClientContainer({
           />
           
           <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-8 w-full">
-            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 gap-4">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
-                <Users className="text-indigo-600" /> ผลการเข้าพบซ้ำ (ความถี่ 3 เช็คอินขึ้นไป)
-              </h3>
+            <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center bg-slate-50 gap-4">
+              <div className="flex items-center gap-2">
+                <Users className="text-indigo-600" />
+                <h3 className="font-bold text-slate-800 text-lg">
+                  ผลการเข้าพบซ้ำ ({repeatedVisitsData.length} บริษัท)
+                </h3>
+              </div>
+
+              {/* 🎛️ ชุดเครื่องมือฟิลเตอร์ตารางเข้าพบซ้ำ */}
+              <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                {/* 1. ค้นหาชื่อบริษัท / โครงการ */}
+                <div className="relative flex-1 sm:w-64">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาบริษัท หรือ โปรเจกต์..."
+                    value={repeatedSearch}
+                    onChange={(e) => setRepeatedSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 text-xs rounded-md outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 transition"
+                  />
+                  {repeatedSearch && (
+                    <button 
+                      onClick={() => setRepeatedSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                {/* 2. ฟิลเตอร์สถานะโครงการ */}
+                <div className="flex items-center bg-white border border-slate-200 rounded-md p-0.5 text-xs font-medium">
+                  <button
+                    onClick={() => setRepeatedProjectFilter('ALL')}
+                    className={`px-2.5 py-1 rounded transition-colors ${
+                      repeatedProjectFilter === 'ALL' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ทั้งหมด
+                  </button>
+                  <button
+                    onClick={() => setRepeatedProjectFilter('HAS_PROJECT')}
+                    className={`px-2.5 py-1 rounded transition-colors ${
+                      repeatedProjectFilter === 'HAS_PROJECT' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    มีโปรเจกต์
+                  </button>
+                  <button
+                    onClick={() => setRepeatedProjectFilter('NO_PROJECT')}
+                    className={`px-2.5 py-1 rounded transition-colors ${
+                      repeatedProjectFilter === 'NO_PROJECT' ? 'bg-slate-700 text-white font-bold' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ยังไม่มีโปรเจกต์
+                  </button>
+                </div>
+
+                {/* 3. เลือกระดับความถี่ขั้นต่ำ */}
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-md text-xs">
+                  <span className="text-slate-500 font-medium">เข้าพบ:</span>
+                  <select
+                    value={repeatedMinCount}
+                    onChange={(e) => setRepeatedMinCount(Number(e.target.value))}
+                    className="bg-transparent font-bold text-slate-800 outline-none cursor-pointer"
+                  >
+                    <option value={1}>1 ครั้งขึ้นไป</option>
+                    <option value={2}>2 ครั้งขึ้นไป</option>
+                    <option value={3}>3 ครั้งขึ้นไป (มาตรฐาน)</option>
+                    <option value={5}>5 ครั้งขึ้นไป</option>
+                    <option value={10}>10 ครั้งขึ้นไป (VIP)</option>
+                  </select>
+                </div>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left whitespace-nowrap text-sm border-collapse border border-slate-200">
