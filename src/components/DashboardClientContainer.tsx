@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   LayoutDashboard, ShoppingCart, Clock, TrendingUp, 
   Calendar, Users, Map as MapIcon, Activity, AlertCircle, Star, Target, Database, MapPin, Building2, Scaling,
-  ChevronRight, Smartphone, FileText, Loader2
+  ChevronRight, Smartphone, FileText, Loader2, Folder
 } from 'lucide-react';
 import Link from 'next/link';
 import VipPipelineTable from '@/components/VipPipelineTable';
@@ -132,6 +132,7 @@ export default function DashboardClientContainer({
   const [projects, setProjects] = useState<any[]>([]);
   const [minFetched, setMinFetched] = useState<string | null>(null);
   const [maxFetched, setMaxFetched] = useState<string | null>(null);
+  const [visibleRepeatedVisits, setVisibleRepeatedVisits] = useState(10);
 
   // Load from cache on mount
   useEffect(() => {
@@ -341,7 +342,7 @@ export default function DashboardClientContainer({
 
   // 5. Build rest of dashboard stats based on allActiveProjects
   const companyStats = useMemo(() => {
-    const stats: Record<string, { id: string, name: string, count: number, salesBreakdown: Record<string, number> }> = {};
+    const stats: Record<string, { id: string, name: string, count: number, salesBreakdown: Record<string, number>, uniqueProjects: Map<string, Date>, totalSqm: number }> = {};
     allActiveProjects.forEach(proj => {
       const orderItem = Array.isArray(proj.order_items) ? proj.order_items[0] : proj.order_items;
       const order = orderItem?.orders;
@@ -354,14 +355,32 @@ export default function DashboardClientContainer({
 
       if (company && company.name && company.id) {
         const cName = company.name;
-        if (!stats[cName]) stats[cName] = { id: company.id, name: cName, count: 0, salesBreakdown: {} };
+        if (!stats[cName]) stats[cName] = { id: company.id, name: cName, count: 0, salesBreakdown: {}, uniqueProjects: new Map(), totalSqm: 0 };
+        
         stats[cName].count += 1; 
+        stats[cName].totalSqm += (Number(proj.area_sqm) || 0);
+        
+        const projName = proj.project_name?.trim() || '';
+        if (projName && projName !== 'ไม่มีการระบุโครงการ' && projName !== 'ไม่ระบุโครงการ') {
+          const pDate = new Date(proj.created_at || order?.created_at || new Date());
+          const existingDate = stats[cName].uniqueProjects.get(projName);
+          if (!existingDate || pDate < existingDate) {
+            stats[cName].uniqueProjects.set(projName, pDate);
+          }
+        }
+
         if (!stats[cName].salesBreakdown[salesName]) stats[cName].salesBreakdown[salesName] = 0;
         stats[cName].salesBreakdown[salesName] += 1;
       }
     });
     return stats;
   }, [allActiveProjects, profileMap]);
+
+  const repeatedVisitsData = useMemo(() => {
+    return Object.values(companyStats)
+      .filter(comp => comp.count >= 3)
+      .sort((a, b) => b.count - a.count);
+  }, [companyStats]);
 
   const uniqueSalesNamesForChart = useMemo(() => {
     const set = new Set<string>();
@@ -624,7 +643,7 @@ export default function DashboardClientContainer({
           </p>
         </div>
         
-        <div className="w-full xl:w-auto overflow-x-auto pb-2 xl:pb-0">
+        <div className="w-full xl:w-auto pb-2 xl:pb-0">
           <DashboardDateFilter
             salesList={visibleSales}
             projectTypes={projectTypes || []}
@@ -709,11 +728,83 @@ export default function DashboardClientContainer({
       </div>
 
       {variant === 'advance' ? (
-        <WeeklyVisitPlanner 
-          projectTypes={projectTypes} 
-          productCategories={productCategories} 
-          currentUserRole={currentUserRole}
-        />
+        <>
+          <WeeklyVisitPlanner 
+            projectTypes={projectTypes} 
+            productCategories={productCategories} 
+            currentUserRole={currentUserRole}
+          />
+          
+          <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-8 w-full">
+            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 gap-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
+                <Users className="text-indigo-600" /> ผลการเข้าพบซ้ำ (ความถี่ 3 เช็คอินขึ้นไป)
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left whitespace-nowrap text-sm border-collapse border border-slate-200">
+                <thead className="bg-slate-100 text-slate-600 text-xs uppercase font-bold tracking-wider">
+                  <tr>
+                    <th className="px-5 py-3 border border-slate-200 text-center w-16">Type</th>
+                    <th className="px-5 py-3 border border-slate-200">Company Name</th>
+                    <th className="px-5 py-3 border border-slate-200 text-center">ความถี่ (เช็คอิน)</th>
+                    <th className="px-5 py-3 border border-slate-200 text-left">จำนวน/รายชื่อโปรเจค</th>
+                    <th className="px-5 py-3 border border-slate-200 text-right">SQM รวม</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {repeatedVisitsData.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-8 text-center text-slate-400 italic border border-slate-200">ไม่มีบริษัทที่เข้าพบ 3 ครั้งขึ้นไปในช่วงเวลานี้</td>
+                    </tr>
+                  ) : (
+                    repeatedVisitsData.slice(0, visibleRepeatedVisits).map((comp, index) => (
+                      <tr key={comp.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-5 py-3 text-center text-slate-500 border border-slate-200">
+                          {index + 1}
+                        </td>
+                        <td className="px-5 py-3 font-medium text-slate-700 border border-slate-200">{comp.name}</td>
+                        <td className="px-5 py-3 text-center text-slate-700 border border-slate-200">
+                          {comp.count}
+                        </td>
+                        <td className="px-5 py-3 text-left border border-slate-200 align-top">
+                          <div className="font-semibold text-slate-700 mb-1.5">
+                            {comp.uniqueProjects.size} {comp.uniqueProjects.size > 0 && <span className="text-xs font-normal text-slate-500 ml-1">โปรเจค</span>}
+                          </div>
+                          {comp.uniqueProjects.size > 0 && (
+                            <div className="flex flex-col gap-1">
+                              {Array.from(comp.uniqueProjects.entries()).map(([projName, dateVal], i) => (
+                                <div key={i} className="flex items-start gap-1.5 mb-1.5 last:mb-0">
+                                  <Folder size={13} className="text-indigo-500 mt-[2px] shrink-0" />
+                                  <span className="text-[13px] text-slate-600 whitespace-normal break-words leading-tight flex-1">
+                                    {projName} <span className="text-slate-400 text-[11px] whitespace-nowrap ml-1">({new Date(dateVal).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })})</span>
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-right font-medium text-emerald-600 border border-slate-200">
+                          {comp.totalSqm.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+              {repeatedVisitsData.length > visibleRepeatedVisits && (
+                <div className="p-4 flex justify-center bg-white border-t border-slate-100">
+                  <button 
+                    onClick={() => setVisibleRepeatedVisits(prev => prev + 10)}
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-sm transition-colors shadow-sm"
+                  >
+                    โหลดเพิ่มเติม (Load More)
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       ) : (
         <>
           {/* กล่องตัวเลข 4 กล่อง (ของเดิม) */}

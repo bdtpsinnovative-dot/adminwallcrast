@@ -58,6 +58,17 @@ const formatLocal = (d: Date) => {
   const [tempEnd, setTempEnd] = useState(urlEnd);
   const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+  const [isSalesDropdownOpen, setIsSalesDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: any) => {
+      if (!event.target.closest('.sales-dropdown')) {
+        setIsSalesDropdownOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (selectedMonths.length > 0) {
@@ -310,18 +321,59 @@ const formatLocal = (d: Date) => {
           <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
         </div>
 
-        <div className="relative">
-          <select 
+        <div className="relative sales-dropdown">
+          <button 
             disabled={isPending}
-            className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm disabled:opacity-50
+            onClick={() => setIsSalesDropdownOpen(!isSalesDropdownOpen)}
+            className={`flex items-center gap-2 border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm disabled:opacity-50 min-w-[160px] text-left
               ${currentSales !== 'ALL' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'}`}
-            value={currentSales} 
-            onChange={(e) => applyFilter('sales', e.target.value)}
           >
-            <option value="ALL">👤 เซลส์: ทั้งหมด</option>
-            {salesList?.map((s: any) => <option key={s.id} value={s.id}>{s.full_name || 'ไม่ระบุชื่อ'}</option>)}
-          </select>
-          <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
+            {currentSales === 'ALL' ? (
+              <span className="truncate flex-1">👤 เซลส์: ทั้งหมด</span>
+            ) : (() => {
+              const selectedSales = salesList?.find(s => s.id === currentSales);
+              return (
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  {selectedSales?.avatar_url ? (
+                    <img src={selectedSales.avatar_url} className="w-4 h-4 rounded-full object-cover shrink-0" alt="" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full bg-blue-200 flex items-center justify-center text-[8px] font-bold text-blue-700 shrink-0">
+                      {selectedSales?.full_name ? selectedSales.full_name.charAt(0).toUpperCase() : '?'}
+                    </div>
+                  )}
+                  <span className="truncate">{selectedSales?.full_name || 'ไม่ระบุชื่อ'}</span>
+                </div>
+              );
+            })()}
+            <ChevronDown size={14} className="absolute right-2 top-1.5 text-slate-400 pointer-events-none" />
+          </button>
+          
+          {isSalesDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1 w-[220px] bg-white border border-slate-200 shadow-xl rounded-lg overflow-hidden z-[100] max-h-60 overflow-y-auto">
+              <div 
+                className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors text-xs ${currentSales === 'ALL' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-700'}`}
+                onClick={() => { applyFilter('sales', 'ALL'); setIsSalesDropdownOpen(false); }}
+              >
+                👤 เซลส์: ทั้งหมด
+              </div>
+              {salesList?.map((s: any) => (
+                <div 
+                  key={s.id}
+                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors text-xs border-t border-slate-50 ${currentSales === s.id ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-700'}`}
+                  onClick={() => { applyFilter('sales', s.id); setIsSalesDropdownOpen(false); }}
+                >
+                  {s.avatar_url ? (
+                    <img src={s.avatar_url} className="w-5 h-5 rounded-full object-cover shrink-0" alt="" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
+                      {s.full_name ? s.full_name.charAt(0).toUpperCase() : '?'}
+                    </div>
+                  )}
+                  <span className="truncate">{s.full_name || 'ไม่ระบุชื่อ'}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="relative">

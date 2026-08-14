@@ -33,7 +33,7 @@ export default async function DashboardAdvancePage({
     { data: customerTypes }
   ] = await Promise.all([
     supabase.auth.getUser(token),
-    supabase.from('profiles').select('id, full_name, team_id, role'),
+    supabase.from('profiles').select('id, full_name, team_id, role, email, avatar_url'),
     supabase.from('project_types').select('id, name'),
     supabase.from('product_categories').select('id, name'),
     supabase.from('teams').select('id, team_name').order('team_name'),

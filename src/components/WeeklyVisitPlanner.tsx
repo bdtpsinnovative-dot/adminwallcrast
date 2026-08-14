@@ -124,7 +124,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
       .from('visit_plans')
       .select(`
         id, planned_date, project_concept, status, user_id, company_id, project_id, project_type_id, product_category_id,
-        profiles (id, full_name),
+        profiles (id, full_name, avatar_url, email),
         companies (id, name),
         projects (id, project_name),
         project_types (id, name),
@@ -309,6 +309,21 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
   useEffect(() => {
     fetchPipelineAndCompanies();
     fetchProjects();
+
+    // ⚡ Realtime Subscription: ฟังการเปลี่ยนแปลงแผนงานและออเดอร์ เพื่ออัปเดตแบบสดๆ เหมือนในแอป
+    const channel = supabase
+      .channel('realtime_visit_plans_web')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_plans' }, () => {
+        fetchPlans();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+        fetchPlans();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
 
@@ -505,6 +520,14 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
                                 {plan.projects.project_name}
                               </p>
                             )}
+                            <div className="flex items-center justify-between gap-1.5 mt-2 pt-2 border-t border-black/5 text-[11px]">
+                              <span className="font-semibold text-emerald-600 flex items-center gap-1">
+                                📅 {new Date(plan.planned_date).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
+                              </span>
+                              <span className="text-[10px] text-slate-400 truncate max-w-[100px]" title={plan.profiles?.full_name || ''}>
+                                {plan.profiles?.full_name || 'ไม่ระบุ'}
+                              </span>
+                            </div>
                           </div>
                           <div className="flex-shrink-0 flex items-center justify-center pl-2">
                             {plan.status === 'completed' && <CheckCircle2 size={16} className="text-emerald-500" />}
