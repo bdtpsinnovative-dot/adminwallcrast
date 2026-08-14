@@ -17,109 +17,61 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
   const [weeks, setWeeks] = useState<{ start: Date, end: Date, label: string }[]>([]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
-  useEffect(() => {
-    const d = new Date();
+  // Helper: คำนวณวันจันทร์ของสัปดาห์นั้น
+  const getMonday = (date: Date) => {
+    const d = new Date(date);
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Get Monday
-    const currentMonday = new Date(d.setDate(diff));
-    currentMonday.setHours(0,0,0,0);
-    
-    const newWeeks = [];
-    // 4 weeks past, current week, 7 weeks future = 12 weeks total
-    for (let i = -4; i <= 7; i++) {
-      const start = new Date(currentMonday);
-      start.setDate(start.getDate() + (i * 7));
-      
-      const end = new Date(start);
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(d.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  };
+
+  // Helper: สร้างรายการสัปดาห์แบบ Dynamic ตามช่วงเวลาที่มีแผนงานจริง
+  const generateWeeksFromPlans = (allPlans: any[], ensureTargetDate?: Date) => {
+    const currentMonday = getMonday(new Date());
+    let minMonday = new Date(currentMonday);
+    let maxMonday = new Date(currentMonday);
+
+    allPlans.forEach(p => {
+      if (p.planned_date) {
+        const pMonday = getMonday(new Date(p.planned_date));
+        if (pMonday < minMonday) minMonday = pMonday;
+        if (pMonday > maxMonday) maxMonday = pMonday;
+      }
+    });
+
+    if (ensureTargetDate) {
+      const targetMonday = getMonday(ensureTargetDate);
+      if (targetMonday < minMonday) minMonday = targetMonday;
+      if (targetMonday > maxMonday) maxMonday = targetMonday;
+    }
+
+    // ขยายขอบเขต ซ้าย -1 สัปดาห์ และ ขวา +1 สัปดาห์
+    const startBound = new Date(minMonday);
+    startBound.setDate(startBound.getDate() - 7);
+
+    const endBound = new Date(maxMonday);
+    endBound.setDate(endBound.getDate() + 7);
+
+    const calculatedWeeks = [];
+    for (let w = new Date(startBound); w <= endBound; w.setDate(w.getDate() + 7)) {
+      const start = new Date(w);
+      const end = new Date(w);
       end.setDate(end.getDate() + 6);
-      end.setHours(23,59,59,999);
-      
+      end.setHours(23, 59, 59, 999);
+
       const label = `${start.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}`;
-      
-      newWeeks.push({ start, end, label });
+      calculatedWeeks.push({ start, end, label });
     }
-    setWeeks(newWeeks);
-  }, []);
 
-  const [plans, setPlans] = useState<any[]>([]);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Modal Form State
-  const [selectedCompany, setSelectedCompany] = useState('');
-  const [selectedProject, setSelectedProject] = useState('');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedProjectType, setSelectedProjectType] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [concept, setConcept] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
-  const [viewPlanDetail, setViewPlanDetail] = useState<any | null>(null);
-
-  // Pipeline Data State (Algorithm)
-  const [pipelineData, setPipelineData] = useState<any[]>([]);
-
-  const pipelineProjIds = useMemo(() => {
-    const comp = pipelineData.find(p => p.company.id === selectedCompany);
-    return new Set(comp ? comp.projects.map((p: any) => p.id) : []);
-  }, [selectedCompany, pipelineData]);
-  
-  // Combobox State
-  const [companySearch, setCompanySearch] = useState('');
-  const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
-  const [visibleCompanyCount, setVisibleCompanyCount] = useState(50);
-  
-  const [projectSearch, setProjectSearch] = useState('');
-  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
-  const [visibleProjectCount, setVisibleProjectCount] = useState(50);
-
-  // Drag to scroll logic
-  const isDragging = useRef(false);
-  const startX = useRef(0);
-  const scrollLeft = useRef(0);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!scrollContainerRef.current) return;
-    isDragging.current = true;
-    scrollContainerRef.current.classList.add('cursor-grabbing');
-    scrollContainerRef.current.classList.remove('snap-x', 'snap-mandatory');
-    startX.current = e.pageX - scrollContainerRef.current.offsetLeft;
-    scrollLeft.current = scrollContainerRef.current.scrollLeft;
+    setWeeks(calculatedWeeks);
   };
 
-  const handleMouseLeave = () => {
-    isDragging.current = false;
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.classList.remove('cursor-grabbing');
-      scrollContainerRef.current.classList.add('snap-x', 'snap-mandatory');
-    }
-  };
-
-  const handleMouseUp = () => {
-    isDragging.current = false;
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.classList.remove('cursor-grabbing');
-      scrollContainerRef.current.classList.add('snap-x', 'snap-mandatory');
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current || !scrollContainerRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - scrollContainerRef.current.offsetLeft;
-    const walk = (x - startX.current) * 1.5;
-    scrollContainerRef.current.scrollLeft = scrollLeft.current - walk;
-  };
-
-  const fetchPlans = async () => {
-    if (weeks.length === 0) return;
+  const fetchPlans = async (targetWeekToFocus?: Date) => {
     setLoading(true);
-    
-    const startIso = weeks[0].start.toISOString();
-    const endIso = weeks[weeks.length - 1].end.toISOString();
 
+    // ดึงแผนงานทั้งหมดมาคำนวณสัปดาห์แบบ Dynamic
     const { data, error } = await supabase
       .from('visit_plans')
       .select(`
@@ -130,33 +82,33 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
         project_types (id, name),
         product_categories (id, name)
       `)
-      .gte('planned_date', startIso)
-      .lte('planned_date', endIso)
       .order('planned_date', { ascending: true });
 
     if (!error && data) {
-      const { data: weekOrders } = await supabase
+      // 1. สร้างสัปดาห์แบบ Dynamic
+      generateWeeksFromPlans(data, targetWeekToFocus);
+
+      // 2. ตรวจสอบสถานะการเช็คอิน
+      const { data: allOrders } = await supabase
         .from('orders')
-        .select('company_id, user_id, created_at')
-        .gte('created_at', startIso)
-        .lte('created_at', endIso);
+        .select('company_id, user_id, created_at');
 
       const processedPlans = data.map((plan: any) => {
-        if (plan.status === 'pending' && weekOrders) {
+        if (plan.status === 'pending' && allOrders) {
           const planDate = new Date(plan.planned_date);
-          const planWeek = weeks.find(w => planDate >= w.start && planDate <= w.end);
-          
-          if (planWeek) {
-            const hasCheckIn = weekOrders.some(
-              (o: any) => {
-                const orderDate = new Date(o.created_at);
-                return o.company_id === plan.company_id && o.user_id === plan.user_id && orderDate >= planWeek.start && orderDate <= planWeek.end;
-              }
-            );
-            if (hasCheckIn) {
-              supabase.from('visit_plans').update({ status: 'completed' }).eq('id', plan.id).then();
-              return { ...plan, status: 'completed' };
-            }
+          const pMonday = getMonday(planDate);
+          const pSunday = new Date(pMonday);
+          pSunday.setDate(pSunday.getDate() + 6);
+          pSunday.setHours(23, 59, 59, 999);
+
+          const hasCheckIn = allOrders.some((o: any) => {
+            const orderDate = new Date(o.created_at);
+            return o.company_id === plan.company_id && o.user_id === plan.user_id && orderDate >= pMonday && orderDate <= pSunday;
+          });
+
+          if (hasCheckIn) {
+            supabase.from('visit_plans').update({ status: 'completed' }).eq('id', plan.id).then();
+            return { ...plan, status: 'completed' };
           }
         }
         return plan;
@@ -290,15 +242,13 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
   };
 
   useEffect(() => {
-    fetchPlans();
-  }, [weeks]);
-
-  useEffect(() => {
     if (weeks.length > 0 && scrollContainerRef.current) {
-      // Index 4 is the current week (0 to 3 are past weeks)
-      const child = scrollContainerRef.current.children[4] as HTMLElement;
+      const currentMonday = getMonday(new Date());
+      const currentWeekIndex = weeks.findIndex(w => getMonday(w.start).getTime() === currentMonday.getTime());
+      const targetIndex = currentWeekIndex !== -1 ? currentWeekIndex : 0;
+      
+      const child = scrollContainerRef.current.children[targetIndex] as HTMLElement;
       if (child) {
-        // Slight delay to ensure render is complete
         setTimeout(() => {
           scrollContainerRef.current?.scrollTo({ left: child.offsetLeft - 16, behavior: 'smooth' });
         }, 100);
@@ -309,6 +259,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
   useEffect(() => {
     fetchPipelineAndCompanies();
     fetchProjects();
+    fetchPlans();
 
     // ⚡ Realtime Subscription: ฟังการเปลี่ยนแปลงแผนงานและออเดอร์ เพื่ออัปเดตแบบสดๆ เหมือนในแอป
     const channel = supabase
@@ -395,7 +346,7 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
       if (!error) {
         setIsModalOpen(false);
         resetForm();
-        fetchPlans();
+        fetchPlans(new Date(selectedDate));
       } else {
         alert('เกิดข้อผิดพลาดในการแก้ไขข้อมูล');
       }
@@ -416,19 +367,21 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
       if (!error) {
         setIsModalOpen(false);
         resetForm();
-        fetchPlans();
+        fetchPlans(new Date(selectedDate));
       } else {
           alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง');
       }
     }
   };
 
+  const currentMondayTime = getMonday(new Date()).getTime();
+
   return (
     <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-8 w-full">
       {/* Header */}
       <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 gap-4">
         <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
-          <Calendar className="text-indigo-600" /> แผนการเข้าพบลูกค้า (12 สัปดาห์)
+          <Calendar className="text-indigo-600" /> แผนการเข้าพบลูกค้า
         </h3>
         
         <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
@@ -464,9 +417,10 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
                 const d = new Date(p.planned_date);
                 return d >= week.start && d <= week.end;
               });
-              const isPast = index < 4;
-              const isCurrentWeek = index === 4;
-              const isFuture = index > 4;
+              const weekMondayTime = getMonday(week.start).getTime();
+              const isPast = weekMondayTime < currentMondayTime;
+              const isCurrentWeek = weekMondayTime === currentMondayTime;
+              const isFuture = weekMondayTime > currentMondayTime;
               
               let headerColorClass = '';
               let badgeElement = null;
