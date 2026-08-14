@@ -463,6 +463,8 @@ export default function WeeklyVisitPlanner({ projectTypes, productCategories, cu
     return validProfiles.find(p => p.id === selectedUserId);
   }, [validProfiles, selectedUserId]);
 
+  const currentMondayTime = getMonday(new Date()).getTime();
+
   return (
     <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-8 w-full">
       {/* Header */}
