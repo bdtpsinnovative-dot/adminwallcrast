@@ -677,13 +677,13 @@ function ProjectReportsContent() {
         {/* ── CHARTS ───────────────────────────────────────────────────────── */}
         {/* 🛠️ เติมความสูง h-[320px] คุมกล่องนอกสุดของกราฟทั้ง 2 ตัวตรงนี้ครับนาย */}
         <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 transition-opacity duration-300 ${dimCls}`}>
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100">
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 min-w-0">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><PieChart size={20} /></div>
               <h3 className="font-black text-xl text-slate-800 tracking-tight">Project Distribution</h3>
             </div>
-            <div className="h-[320px] w-full"> {/* 👈 เติมความสูงตรงนี้เพื่อคุม ResponsiveContainer */}
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[320px] w-full min-w-0"> {/* 👈 เติมความสูงตรงนี้เพื่อคุม ResponsiveContainer */}
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <RePie>
                   <Pie data={dashboardData} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="projectCount">
                     {dashboardData.map((_, i) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
@@ -695,13 +695,13 @@ function ProjectReportsContent() {
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100">
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 min-w-0">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><BarChart2 size={20} /></div>
               <h3 className="font-black text-xl text-slate-800 tracking-tight">Company Engagement</h3>
             </div>
-            <div className="h-[320px] w-full"> {/* 👈 เติมความสูงตรงนี้เพื่อคุม ResponsiveContainer */}
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[320px] w-full min-w-0"> {/* 👈 เติมความสูงตรงนี้เพื่อคุม ResponsiveContainer */}
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={dashboardData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }} />

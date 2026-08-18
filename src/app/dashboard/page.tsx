@@ -23,41 +23,49 @@ export default async function DashboardPage({
     redirect('/login');
   }
 
-  // 🚀 Fetch Auth + all Master Data in 1 PARALLEL Promise.all call (eliminates 1.2s server waterfall)
-  const [
-    authResult,
-    { data: profiles },
-    { data: projectTypes },
-    { data: productCategories },
-    { data: teams },
-    { data: customerTypes }
-  ] = await Promise.all([
-    supabase.auth.getUser(token),
-    supabase.from('profiles').select('id, full_name, team_id, role'),
-    supabase.from('project_types').select('id, name'),
-    supabase.from('product_categories').select('id, name'),
-    supabase.from('teams').select('id, team_name').order('team_name'),
-    supabase.from('customer_types').select('id, name')
-  ]);
+  try {
+    // 🚀 Fetch Auth + all Master Data in 1 PARALLEL Promise.all call (eliminates 1.2s server waterfall)
+    const [
+      authResult,
+      { data: profiles },
+      { data: projectTypes },
+      { data: productCategories },
+      { data: teams },
+      { data: customerTypes }
+    ] = await Promise.all([
+      supabase.auth.getUser(token),
+      supabase.from('profiles').select('id, full_name, team_id, role'),
+      supabase.from('project_types').select('id, name'),
+      supabase.from('product_categories').select('id, name'),
+      supabase.from('teams').select('id, team_name').order('team_name'),
+      supabase.from('customer_types').select('id, name')
+    ]);
 
-  if (authResult.error || !authResult.data?.user) {
+    if (authResult.error || !authResult.data?.user) {
+      redirect('/login');
+    }
+
+    const user = authResult.data.user;
+    const currentProfile = profiles?.find((p: any) => p.id === user.id);
+    const currentUserRole = currentProfile?.role || 'user';
+    const currentUserTeamId = currentProfile?.team_id || null;
+
+    return (
+      <DashboardClientContainer
+        currentUserRole={currentUserRole}
+        currentUserTeamId={currentUserTeamId}
+        profiles={profiles || []}
+        projectTypes={projectTypes || []}
+        productCategories={productCategories || []}
+        teams={teams || []}
+        customerTypes={customerTypes || []}
+      />
+    );
+  } catch (error: any) {
+    if (error?.digest?.startsWith('NEXT_REDIRECT') || error?.message === 'NEXT_REDIRECT') {
+      throw error;
+    }
+    console.error('⚠️ [DashboardPage] Failed to fetch initial data from Supabase:', error?.message || error);
     redirect('/login');
   }
-
-  const user = authResult.data.user;
-  const currentProfile = profiles?.find((p: any) => p.id === user.id);
-  const currentUserRole = currentProfile?.role || 'user';
-  const currentUserTeamId = currentProfile?.team_id || null;
-
-  return (
-    <DashboardClientContainer
-      currentUserRole={currentUserRole}
-      currentUserTeamId={currentUserTeamId}
-      profiles={profiles || []}
-      projectTypes={projectTypes || []}
-      productCategories={productCategories || []}
-      teams={teams || []}
-      customerTypes={customerTypes || []}
-    />
-  );
 }

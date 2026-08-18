@@ -556,7 +556,7 @@ export default function WeeklyVisitPlanner({
                     <span className="text-xs bg-white/60 px-2 py-0.5 font-bold rounded-none border border-black/10">{weekPlans.length}</span>
                   </div>
                   
-                    <div className="flex flex-col gap-2 min-h-[150px] bg-slate-50/50 p-2 border border-slate-100 h-full">
+                    <div className="flex flex-col gap-2 min-h-[150px] max-h-[440px] overflow-y-auto pr-1 bg-slate-50/50 p-2 border border-slate-100 h-full custom-scrollbar">
                       {weekPlans.length === 0 ? (
                          <div className="flex flex-col items-center justify-center py-10 text-slate-400 text-center px-4">
                             <Calendar size={28} className="opacity-20 mb-2" />

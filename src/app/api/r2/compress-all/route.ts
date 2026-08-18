@@ -1,4 +1,7 @@
 // src/app/api/r2/compress-all/route.ts
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 import { NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, _Object } from "@aws-sdk/client-s3";
 import sharp from "sharp";
