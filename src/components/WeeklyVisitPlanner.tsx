@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Calendar, CheckCircle2, XCircle, Plus, ChevronLeft, ChevronRight, 
-  Clock, Building2, User, Loader2, X, Filter
+  Clock, Building2, User, Users, Sparkles, FolderKanban, Loader2, X, Filter
 } from 'lucide-react';
 
 interface Props {
@@ -1416,12 +1416,19 @@ export default function WeeklyVisitPlanner({
                                 >
                                   <span>{p.company.name}</span>
                                   <span className="flex items-center gap-1.5">
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${p.is_mine ? 'bg-emerald-50 text-emerald-700' : p.is_team ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-700'}`}>
-                                      {p.is_mine ? 'ของคุณ' : p.is_team ? 'ทีม' : 'แนะนำ'}
+                                    <span
+                                      title={p.is_mine ? 'ประวัติของคุณ' : p.is_team ? 'ประวัติทีม' : 'รายการแนะนำ'}
+                                      aria-label={p.is_mine ? 'ประวัติของคุณ' : p.is_team ? 'ประวัติทีม' : 'รายการแนะนำ'}
+                                      className={`flex h-5 w-5 items-center justify-center rounded ${p.is_mine ? 'bg-emerald-50 text-emerald-700' : p.is_team ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-700'}`}
+                                    >
+                                      {p.is_mine ? <User size={12} /> : p.is_team ? <Users size={12} /> : <Sparkles size={12} />}
                                     </span>
-                                    <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                                      {p.projects.length} โครงการ
-                                    </span>
+                                    {p.projects.length > 0 && (
+                                      <span title={`${p.projects.length} โครงการ`} className="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                                        <FolderKanban size={11} />
+                                        {p.projects.length}
+                                      </span>
+                                    )}
                                   </span>
                                 </div>
                               ))}
