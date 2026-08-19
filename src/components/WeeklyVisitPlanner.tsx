@@ -476,21 +476,33 @@ export default function WeeklyVisitPlanner({
     if (!projectName || isAddingProject) return;
     setIsAddingProject(true);
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .insert({ project_name: projectName })
-        .select('id, project_name, project_type_id')
-        .single();
-      if (error) throw error;
-      setProjects(current => [data, ...current]);
-      setSelectedProject(data.id);
-      setProjectSearch(data.project_name);
-      setConcept(data.project_name);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ project_name: projectName }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.project) {
+        throw new Error(result.error || 'เพิ่มโปรเจกต์ไม่สำเร็จ');
+      }
+
+      const project = result.project;
+      setProjects(current => current.some(item => item.id === project.id) ? current : [project, ...current]);
+      setSelectedProject(project.id);
+      setProjectSearch(project.project_name);
+      setConcept(project.project_name);
       setIsAddProjectOpen(false);
       setNewProjectName('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('เพิ่มโปรเจกต์ไม่สำเร็จ:', error);
-      alert('เพิ่มโปรเจกต์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+      alert(error?.message || 'เพิ่มโปรเจกต์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     } finally {
       setIsAddingProject(false);
     }
