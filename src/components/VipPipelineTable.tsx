@@ -279,16 +279,25 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">พิกัดจากการเช็กอิน</label>
               {coordinates ? (
-                <a
-                  href={`https://maps.google.com/?q=${coordinates.latitude},${coordinates.longitude}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
-                >
-                  <Map size={16} />
-                  {coordinates.latitude.toFixed(6)}, {coordinates.longitude.toFixed(6)}
-                  <span className="ml-auto text-xs">เปิดแผนที่</span>
-                </a>
+                <div className="overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50">
+                  <iframe
+                    title="แผนที่พิกัดเช็กอิน"
+                    src={`https://www.google.com/maps?q=${coordinates.latitude},${coordinates.longitude}&z=15&output=embed`}
+                    className="h-36 w-full border-0"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                  <a
+                    href={`https://maps.google.com/?q=${coordinates.latitude},${coordinates.longitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 border-t border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    <Map size={16} />
+                    {coordinates.latitude.toFixed(6)}, {coordinates.longitude.toFixed(6)}
+                    <span className="ml-auto text-xs">เปิดแผนที่</span>
+                  </a>
+                </div>
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400">ไม่มีพิกัดจากการเช็กอิน</div>
               )}
