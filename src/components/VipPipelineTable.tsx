@@ -19,6 +19,15 @@ interface Props {
   onRefresh?: () => void;
 }
 
+function getOrderCoordinates(auditLog: any) {
+  const location = auditLog?.location;
+  const latitude = Number(location?.lat ?? location?.latitude);
+  const longitude = Number(location?.lng ?? location?.longitude);
+  return Number.isFinite(latitude) && Number.isFinite(longitude)
+    ? { latitude, longitude }
+    : null;
+}
+
 function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategories, onRefresh }: any) {
   // 🌟 ดึงค่าปี ค.ศ. ปัจจุบัน มาตั้งเป็นค่าเริ่มต้น และค่าต่ำสุด
   const currentYearAD = new Date().getFullYear().toString();
@@ -59,6 +68,8 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
 
   if (!isOpen) return null;
 
+  const coordinates = getOrderCoordinates(data?.order?.audit_log);
+
   // 🌟 ฟังก์ชันสรุปการเปลี่ยนแปลง
   const getChangesSummary = (oldData: any, newData: any) => {
     const changes = [];
@@ -91,10 +102,31 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
   const handleSave = async () => {
     try {
       setIsSaving(true); 
+      const projectName = formData.projectName.trim();
+      const previousProjectName = (data.proj.project_name || '').trim();
+
+      // ชื่อโครงการที่เปลี่ยนจากออเดอร์จะถูกเพิ่มเข้าโครงการกลางด้วย
+      // API คืนรายการเดิมถ้าชื่อซ้ำ จึงไม่สร้างข้อมูลซ้ำ
+      if (projectName && projectName !== previousProjectName) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+
+        const response = await fetch('/api/projects', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ project_name: projectName }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'สร้างรายการโครงการไม่สำเร็จ');
+      }
       
       // 1. บันทึกข้อมูลลงตารางโปรเจกต์
       const projectUpdate = supabase.from('order_item_projects').update({ 
-        project_name: formData.projectName.trim() || null,
+        project_name: projectName || null,
         project_note: formData.note.trim() || null,
         area_sqm: Number(formData.area) || 0,
         project_type_id: formData.projectTypeId || null,
@@ -243,6 +275,23 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">ชื่อลูกค้า</label>
               <input type="text" value={formData.customerName} onChange={(e) => setFormData({...formData, customerName: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-400 font-medium text-slate-700" placeholder="ระบุชื่อลูกค้า..." />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">พิกัดจากการเช็กอิน</label>
+              {coordinates ? (
+                <a
+                  href={`https://maps.google.com/?q=${coordinates.latitude},${coordinates.longitude}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  <Map size={16} />
+                  {coordinates.latitude.toFixed(6)}, {coordinates.longitude.toFixed(6)}
+                  <span className="ml-auto text-xs">เปิดแผนที่</span>
+                </a>
+              ) : (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400">ไม่มีพิกัดจากการเช็กอิน</div>
+              )}
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">พื้นที่ (ตร.ม.)</label>
