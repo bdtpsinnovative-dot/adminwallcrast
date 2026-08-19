@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { saveAdminTokenCookie } from '@/lib/admin-auth-cookie';
 import { Mail, LockKeyhole, Loader2, ArrowRight, Leaf, ShieldCheck } from 'lucide-react';
 
 export default function LoginPage() {
@@ -11,6 +12,23 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const restoreSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (active && session?.access_token) {
+        saveAdminTokenCookie(session.access_token);
+        router.replace('/dashboard');
+      }
+    };
+
+    void restoreSession();
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,8 +57,9 @@ export default function LoginPage() {
         throw new Error('เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์');
       }
 
-      // เซฟ Token ลง Cookie
-      document.cookie = `admin_token=${authData.session.access_token}; path=/; max-age=86400; SameSite=Lax; secure`;
+      // เซฟ token ให้ Server Component เช็กสิทธิ์ได้ และจะถูกต่ออายุจาก
+      // RootLayoutClient ทุกครั้งที่ Supabase refresh session.
+      saveAdminTokenCookie(authData.session.access_token);
 
       // ส่งทุกคนไปที่หน้า Dashboard (เพราะเราเขียนดักสิทธิ์ God Mode / Team Mode ไว้ที่หน้า Dashboard แล้ว)
       router.push('/dashboard'); 

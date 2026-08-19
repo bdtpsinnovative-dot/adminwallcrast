@@ -11,6 +11,7 @@ import {
   BookOpen, LogOut
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { clearAdminTokenCookie, saveAdminTokenCookie } from '@/lib/admin-auth-cookie';
 
 export default function RootLayoutClient({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -18,6 +19,21 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
   const pathname = usePathname();
   const router = useRouter();
   const isPublicPage = pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/catalog');
+
+  // Keep the server-readable cookie synchronized when Supabase silently
+  // refreshes an access token. Without this, an old cookie can work locally
+  // for a while but be rejected by Server Components in production.
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        saveAdminTokenCookie(session.access_token);
+      } else {
+        clearAdminTokenCookie();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // 🌟 ดึงข้อมูล Role ของคนที่ล็อกอินอยู่ ณ ปัจจุบัน
   useEffect(() => {
@@ -49,7 +65,7 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
         } catch (_) {
           // เมื่อ refresh token เสีย signOut อาจตอบ error ได้ แต่ยังต้องพากลับหน้า login
         }
-        document.cookie = 'admin_token=; path=/; max-age=0; SameSite=Lax;';
+        clearAdminTokenCookie();
         if (isActive) {
           setUserRole(null);
           router.replace('/login');
@@ -65,7 +81,7 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    document.cookie = 'admin_token=; path=/; max-age=0; SameSite=Lax;';
+    clearAdminTokenCookie();
     router.push('/login');
   };
 
