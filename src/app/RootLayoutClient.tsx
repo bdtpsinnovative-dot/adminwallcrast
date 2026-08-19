@@ -17,32 +17,57 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
   const [userRole, setUserRole] = useState<string | null>(null); // สเตทรักษายศของผู้ใช้ (admin / user)
   const pathname = usePathname();
   const router = useRouter();
+  const isPublicPage = pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/catalog');
 
   // 🌟 ดึงข้อมูล Role ของคนที่ล็อกอินอยู่ ณ ปัจจุบัน
   useEffect(() => {
+    if (isPublicPage) return;
+
+    let isActive = true;
+
     const checkRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+          throw authError || new Error('ไม่พบเซสชันผู้ใช้');
+        }
+
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
           .single();
-        
-        setUserRole(profile?.role || 'user');
+
+        if (isActive) {
+          setUserRole(profile?.role || 'user');
+        }
+      } catch (error) {
+        // Refresh token อาจหมดอายุ/ถูกลบ: ล้างเฉพาะ session ในเครื่อง แล้วให้ล็อกอินใหม่
+        console.warn('Session is invalid. Returning to login.', error);
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch (_) {
+          // เมื่อ refresh token เสีย signOut อาจตอบ error ได้ แต่ยังต้องพากลับหน้า login
+        }
+        document.cookie = 'admin_token=; path=/; max-age=0; SameSite=Lax;';
+        if (isActive) {
+          setUserRole(null);
+          router.replace('/login');
+        }
       }
     };
-    checkRole();
-  }, [pathname]); // เช็คใหม่ทุกครั้งที่มีการเปลี่ยนหน้า
+    void checkRole();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isPublicPage, pathname, router]); // เช็คใหม่ทุกครั้งที่มีการเปลี่ยนหน้า
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     document.cookie = 'admin_token=; path=/; max-age=0; SameSite=Lax;';
     router.push('/login');
   };
-
-  // 🛡️ 1. เช็คว่าเป็นหน้า Public หรือไม่
-  const isPublicPage = pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/catalog');
 
   // 🚷 🌟 ระบบป้องกันหลังบ้านเวอร์ชันอัปเดต (แก้ไขปลดล็อกหน้าบริษัท)
   useEffect(() => {
