@@ -1380,7 +1380,10 @@ export default function WeeklyVisitPlanner({
                       setIsCompanyDropdownOpen(true);
                       setVisibleCompanyCount(50);
                     }}
-                    onFocus={() => setIsCompanyDropdownOpen(true)}
+                    onFocus={() => {
+                      setIsCompanyDropdownOpen(true);
+                      setVisibleCompanyCount(50);
+                    }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition"
                   />
                   {isCompanyDropdownOpen && (
@@ -1391,7 +1394,9 @@ export default function WeeklyVisitPlanner({
                         onScroll={handleCompanyScroll}
                       >
                         {(() => {
-                          const searchLower = companySearch.toLowerCase();
+                          // เมื่อเลือกบริษัทแล้ว ให้ชื่อคงอยู่ในช่อง แต่เปิดรายการทั้งหมดได้ทันที
+                          // การเริ่มพิมพ์ใหม่จะล้าง selectedCompany และกลับมาใช้ข้อความค้นหาตามปกติ
+                          const searchLower = selectedCompany ? '' : companySearch.toLowerCase();
                           const filteredPipeline = pipelineData.filter(p => p.company.name.toLowerCase().includes(searchLower));
                           const pipelineIds = new Set(pipelineData.map(p => p.company.id));
                           const otherCompanies = companies.filter(c => !pipelineIds.has(c.id) && c.name.toLowerCase().includes(searchLower));
@@ -1470,7 +1475,10 @@ export default function WeeklyVisitPlanner({
                       setIsProjectDropdownOpen(true);
                       setVisibleProjectCount(50);
                     }}
-                    onFocus={() => setIsProjectDropdownOpen(true)}
+                    onFocus={() => {
+                      setIsProjectDropdownOpen(true);
+                      setVisibleProjectCount(50);
+                    }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition text-sm"
                   />
                   {isProjectDropdownOpen && (
@@ -1481,7 +1489,8 @@ export default function WeeklyVisitPlanner({
                         onScroll={handleProjectScroll}
                       >
                         {(() => {
-                          const searchLower = projectSearch.toLowerCase();
+                          // หลักการเดียวกับบริษัท: ชื่อที่เลือกไม่ควรบังคับให้รายการเหลือแค่ชื่อนั้น
+                          const searchLower = selectedProject ? '' : projectSearch.toLowerCase();
                           const pipelineCompany = pipelineData.find(item => item.company.id === selectedCompany);
                           const normalizedProjectName = (project: any) => String(project?.project_name || '')
                             .trim()
