@@ -734,6 +734,7 @@ export default function DashboardClientContainer({
               <Link
                 key={btn.id}
                 href={href}
+                prefetch={false}
                 className={`flex flex-col items-center justify-center py-4 px-3 rounded-xl border transition-all duration-200 group relative overflow-hidden min-h-[105px] ${
                   isActive 
                     ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 border-indigo-600 text-white shadow-md shadow-indigo-200 ring-2 ring-indigo-600 ring-offset-2 ring-offset-white scale-[1.03] z-10' 
@@ -1099,6 +1100,7 @@ export default function DashboardClientContainer({
                   <td className="px-5 py-3 text-center">
                     <Link 
                       href={`/dashboard/checkins/${ci.userId}`} 
+                      prefetch={false}
                       target="_blank" 
                       rel="noopener noreferrer" 
                       className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors border border-indigo-100 shadow-sm"

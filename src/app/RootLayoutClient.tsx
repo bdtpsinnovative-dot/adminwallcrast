@@ -156,6 +156,7 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
                         <Link 
                           key={menu.path}
                           href={menu.path} 
+                          prefetch={false}
                           onClick={() => setIsSidebarOpen(false)}
                           className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 font-bold text-sm border ${
                             isActive 
