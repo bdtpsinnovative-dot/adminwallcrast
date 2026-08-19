@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import {
   ShoppingBag, Menu, X,
   LayoutDashboard, Building2, Package,
-  SearchCheck, Sparkles, ImageIcon,
+  SearchCheck, ClipboardCheck, Sparkles, ImageIcon,
   Cloud, ImagePlus, UserPlus, HardDrive,
   BookOpen, LogOut
 } from 'lucide-react';
@@ -50,6 +50,7 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
       // 🟢 อัปเดตเพิ่มเงื่อนไขเช็กหน้า /dashboard/companies/ ต่อท้ายเข้าไปตรงนี้ครับ
       const isDashboardZone = 
         pathname === '/dashboard' || 
+        pathname === '/dashboardadvance' ||
         pathname.startsWith('/dashboard/checkins/') ||
         pathname.startsWith('/dashboard/companies/'); 
       
@@ -75,6 +76,7 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
         { name: 'จัดการสินค้า', path: '/manage-products', icon: Package, color: 'blue', adminOnly: true },
         { name: 'จัดการคลังสินค้า', path: '/inventory/master', icon: ShoppingBag, color: 'blue', adminOnly: true }, 
         { name: 'ตรวจสอบข้อมูล', path: '/check-data', icon: SearchCheck, color: 'blue', adminOnly: true },
+        { name: 'ตรวจสอบแผนงาน', path: '/check-visit-plans', icon: ClipboardCheck, color: 'blue', adminOnly: true },
       ]
     },
     {

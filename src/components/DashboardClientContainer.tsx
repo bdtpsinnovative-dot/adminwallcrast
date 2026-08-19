@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   LayoutDashboard, ShoppingCart, Clock, TrendingUp, 
   Calendar, Users, Map as MapIcon, Activity, AlertCircle, Star, Target, Database, MapPin, Building2, Scaling,
-  ChevronRight, Smartphone, FileText, Loader2, Folder, Search, Filter as FilterIcon
+  ChevronRight, Smartphone, FileText, Loader2, Folder, Search, Filter as FilterIcon, UserCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import VipPipelineTable from '@/components/VipPipelineTable';
@@ -347,7 +347,14 @@ export default function DashboardClientContainer({
 
   // 5. Build rest of dashboard stats based on allActiveProjects
   const companyStats = useMemo(() => {
-    const stats: Record<string, { id: string, name: string, count: number, salesBreakdown: Record<string, number>, uniqueProjects: Map<string, Date>, totalSqm: number }> = {};
+    const stats: Record<string, {
+      id: string;
+      name: string;
+      count: number;
+      salesBreakdown: Record<string, number>;
+      uniqueProjects: Map<string, { date: Date; salesBreakdown: Record<string, number> }>;
+      totalSqm: number;
+    }> = {};
     allActiveProjects.forEach(proj => {
       const orderItem = Array.isArray(proj.order_items) ? proj.order_items[0] : proj.order_items;
       const order = orderItem?.orders;
@@ -368,9 +375,15 @@ export default function DashboardClientContainer({
         const projName = proj.project_name?.trim() || '';
         if (projName && projName !== 'ไม่มีการระบุโครงการ' && projName !== 'ไม่ระบุโครงการ') {
           const pDate = new Date(proj.created_at || order?.created_at || new Date());
-          const existingDate = stats[cName].uniqueProjects.get(projName);
-          if (!existingDate || pDate < existingDate) {
-            stats[cName].uniqueProjects.set(projName, pDate);
+          const existingProject = stats[cName].uniqueProjects.get(projName);
+          if (!existingProject) {
+            stats[cName].uniqueProjects.set(projName, {
+              date: pDate,
+              salesBreakdown: { [salesName]: 1 },
+            });
+          } else {
+            if (pDate < existingProject.date) existingProject.date = pDate;
+            existingProject.salesBreakdown[salesName] = (existingProject.salesBreakdown[salesName] || 0) + 1;
           }
         }
 
@@ -755,6 +768,7 @@ export default function DashboardClientContainer({
           <WeeklyVisitPlanner 
             projectTypes={projectTypes} 
             productCategories={productCategories} 
+            customerTypes={customerTypes}
             currentUserRole={currentUserRole}
             profiles={profiles || []}
             filterSales={filterSales}
@@ -837,21 +851,23 @@ export default function DashboardClientContainer({
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left whitespace-nowrap text-sm border-collapse border border-slate-200">
-                <thead className="bg-slate-50 text-slate-600 text-xs font-bold border-b border-slate-200">
+              <table className="w-full text-left whitespace-nowrap text-sm border-collapse border border-slate-200 [&_th]:border-r [&_th]:border-slate-200 [&_td]:border-r [&_td]:border-slate-200 [&_th:last-child]:border-r-0 [&_td:last-child]:border-r-0">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 text-xs font-bold border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3.5 text-center w-14 text-slate-400 font-semibold">#</th>
                     <th className="px-5 py-3.5 text-left font-bold text-slate-700 min-w-[200px]">บริษัท</th>
                     <th className="px-4 py-3.5 text-center font-bold text-slate-700 w-32">เช็คอิน (ครั้ง)</th>
+                    <th className="px-5 py-3.5 text-left font-bold text-slate-700 min-w-[190px]">เซลส์ที่เข้าพบ (ครั้ง)</th>
                     <th className="px-4 py-3.5 text-center font-bold text-slate-700 w-32">จำนวนโปรเจกต์</th>
                     <th className="px-5 py-3.5 text-left font-bold text-slate-700 min-w-[280px]">รายชื่อโปรเจกต์</th>
+                    <th className="px-5 py-3.5 text-left font-bold text-slate-700 min-w-[200px]">เซลส์ที่มีโปรเจกต์</th>
                     <th className="px-5 py-3.5 text-right font-bold text-slate-700 w-28">SQM รวม</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-200">
                   {repeatedVisitsData.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-5 py-10 text-center text-slate-400 text-sm">
+                      <td colSpan={8} className="px-5 py-10 text-center text-slate-400 text-sm">
                         ไม่มีข้อมูลบริษัทที่เข้าพบในช่วงเวลานี้
                       </td>
                     </tr>
@@ -871,6 +887,23 @@ export default function DashboardClientContainer({
                             {comp.count}
                           </span>
                         </td>
+                        <td className="px-5 py-3.5 text-left align-middle">
+                          {Object.keys(comp.salesBreakdown).length > 0 ? (
+                            <div className="flex flex-col gap-1.5 py-0.5">
+                              {Object.entries(comp.salesBreakdown)
+                                .sort(([, countA], [, countB]) => countB - countA)
+                                .map(([salesName, visitCount]) => (
+                                  <div key={salesName} className="flex items-center gap-2 text-xs">
+                                    <MapPin size={13} className="shrink-0 text-indigo-500" strokeWidth={2.25} />
+                                    <span className="font-semibold text-slate-700">{salesName}</span>
+                                    <span className="text-[11px] font-semibold text-indigo-600">({visitCount} ครั้ง)</span>
+                                  </div>
+                                ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 text-xs italic">-</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-center align-middle">
                           {comp.uniqueProjects.size > 0 ? (
                             <span className="inline-flex items-center justify-center min-w-[32px] px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200/50">
@@ -883,12 +916,31 @@ export default function DashboardClientContainer({
                         <td className="px-5 py-3.5 text-left align-middle">
                           {comp.uniqueProjects.size > 0 ? (
                             <div className="flex flex-col gap-1.5 py-0.5">
-                              {Array.from(comp.uniqueProjects.entries()).map(([projName, dateVal], i) => (
+                              {Array.from(comp.uniqueProjects.entries()).map(([projName, projectInfo], i) => (
                                 <div key={i} className="flex items-center gap-2 text-xs">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+                                  <Folder size={13} className="shrink-0 text-indigo-500" strokeWidth={2.25} />
                                   <span className="font-semibold text-slate-700">{projName}</span>
                                   <span className="text-slate-400 text-[11px]">
-                                    ({new Date(dateVal).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })})
+                                    ({projectInfo.date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })})
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 text-xs italic">-</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-left align-middle">
+                          {comp.uniqueProjects.size > 0 ? (
+                            <div className="flex flex-col gap-1.5 py-0.5">
+                              {Array.from(comp.uniqueProjects.entries()).map(([projName, projectInfo]) => (
+                                <div key={projName} className="flex min-h-[18px] items-center gap-2 text-xs">
+                                  <UserCheck size={13} className="shrink-0 text-emerald-500" strokeWidth={2.25} />
+                                  <span className="font-semibold text-slate-700">
+                                    {Object.entries(projectInfo.salesBreakdown)
+                                      .sort(([, countA], [, countB]) => countB - countA)
+                                      .map(([salesName]) => salesName)
+                                      .join(', ')}
                                   </span>
                                 </div>
                               ))}
