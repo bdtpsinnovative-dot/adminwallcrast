@@ -421,13 +421,10 @@ export default function WeeklyVisitPlanner({
     if (proj) {
       if (proj.project_type_id) setSelectedProjectType(proj.project_type_id);
       if (proj.product_category_id) setSelectedCategory(proj.product_category_id);
-      setConcept(proj.project_name);
       setProjectSearch(proj.project_name);
     } else {
-      // If it's a generic project, maybe just set the concept to its name
       const genericProj = projects.find(p => p.id === projectId);
       if (genericProj) {
-        setConcept(genericProj.project_name);
         setProjectSearch(genericProj.project_name);
       }
     }
@@ -497,7 +494,6 @@ export default function WeeklyVisitPlanner({
       setProjects(current => current.some(item => item.id === project.id) ? current : [project, ...current]);
       setSelectedProject(project.id);
       setProjectSearch(project.project_name);
-      setConcept(project.project_name);
       setIsAddProjectOpen(false);
       setNewProjectName('');
     } catch (error: any) {
