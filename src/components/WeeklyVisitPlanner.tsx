@@ -348,7 +348,7 @@ export default function WeeklyVisitPlanner({
   const fetchProjects = async () => {
     const { data } = await supabase
       .from('projects')
-      .select('id, project_name, project_type_id')
+      .select('id, project_name')
       .order('project_name');
     if (data) setProjects(data);
   };

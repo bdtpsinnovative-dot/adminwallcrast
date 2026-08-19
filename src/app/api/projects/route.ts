@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     // ชื่อเดิมให้เลือกใช้รายการเดิม แทนที่จะตอบ error ที่ผู้ใช้แก้ไม่ได้
     const { data: existing, error: lookupError } = await supabase
       .from('projects')
-      .select('id, project_name, project_type_id')
+      .select('id, project_name')
       .ilike('project_name', projectName)
       .limit(1)
       .maybeSingle();
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const { data: project, error: insertError } = await supabase
       .from('projects')
       .insert({ project_name: projectName })
-      .select('id, project_name, project_type_id')
+      .select('id, project_name')
       .single();
     if (insertError) throw insertError;
 
