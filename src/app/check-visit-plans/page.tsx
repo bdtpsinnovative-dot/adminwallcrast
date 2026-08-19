@@ -159,20 +159,25 @@ export default function CheckVisitPlansPage() {
     if (!window.confirm(`${action} ${selectedIds.length} แผนงานใช่หรือไม่?`)) return;
 
     setSaving(true);
-    const { error: updateError } = await supabase
-      .from('visit_plans')
-      .update({ is_deleted: isDeletedValue })
-      .in('id', selectedIds);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
 
-    if (updateError) {
-      window.alert(`${action}ไม่สำเร็จ: ${updateError.message}`);
-    } else {
-      setPlans((current) => current.map((plan) => selectedIds.includes(plan.id)
-        ? { ...plan, is_deleted: isDeletedValue }
-        : plan));
-      setSelectedIds([]);
+      const response = await fetch('/api/visit-plans/trash', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds, is_deleted: isDeletedValue }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `${action}ไม่สำเร็จ`);
+
+      await fetchPlans();
+    } catch (error: any) {
+      window.alert(`${action}ไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่อีกครั้ง'}`);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const permanentlyDelete = async () => {
@@ -185,18 +190,25 @@ export default function CheckVisitPlansPage() {
     if (!window.confirm(`ลบถาวร ${selectedIds.length} แผนงานใช่หรือไม่?\nข้อมูลจะกู้คืนไม่ได้`)) return;
 
     setSaving(true);
-    const { error: deleteError } = await supabase
-      .from('visit_plans')
-      .delete()
-      .in('id', selectedIds);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
 
-    if (deleteError) {
-      window.alert(`ลบถาวรไม่สำเร็จ: ${deleteError.message}`);
-    } else {
-      setPlans((current) => current.filter((plan) => !selectedIds.includes(plan.id)));
-      setSelectedIds([]);
+      const response = await fetch('/api/visit-plans/trash', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'ลบถาวรไม่สำเร็จ');
+
+      await fetchPlans();
+    } catch (error: any) {
+      window.alert(`ลบถาวรไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่อีกครั้ง'}`);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   return (
