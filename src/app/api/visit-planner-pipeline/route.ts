@@ -113,10 +113,16 @@ export async function GET(request: NextRequest) {
                 project_name: name,
                 project_type_id: project.project_type_id,
                 product_category_id: item.product_category_id,
+                count: 1,
                 is_mine: source.is_mine,
+                is_team: source.is_team,
+                is_global: source.is_global,
               });
-            } else if (source.is_mine) {
-              savedProject.is_mine = true;
+            } else {
+              savedProject.count = (savedProject.count || 0) + 1;
+              if (source.is_mine) savedProject.is_mine = true;
+              if (source.is_team) savedProject.is_team = true;
+              if (source.is_global) savedProject.is_global = true;
             }
           }
         }

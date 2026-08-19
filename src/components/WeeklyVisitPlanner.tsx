@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Calendar, CheckCircle2, XCircle, Plus, ChevronLeft, ChevronRight, 
-  Clock, Building2, User, Users, Sparkles, FolderKanban, Loader2, X, Filter
+  Clock, Building2, User, Users, Sparkles, FolderKanban, History, Loader2, X, Filter
 } from 'lucide-react';
 
 interface Props {
@@ -1535,6 +1535,26 @@ export default function WeeklyVisitPlanner({
                               normalizedProjectName(project).toLowerCase().includes(searchLower),
                             ),
                           );
+                          const projectRecommendationIcons = (project: any) => {
+                            const isMine = project.is_mine === true;
+                            const isTeam = project.is_team === true;
+                            const usageCount = Number(project.count || 0);
+                            if (!isMine && !isTeam && project.is_global !== true) return null;
+                            const title = isMine ? 'ประวัติของคุณ' : isTeam ? 'ประวัติทีม' : 'รายการแนะนำ';
+                            const icon = isMine ? <User size={13} /> : isTeam ? <Users size={13} /> : <Sparkles size={13} />;
+                            const colorClass = isMine ? 'text-emerald-700' : isTeam ? 'text-sky-700' : 'text-amber-700';
+                            return (
+                              <span className="flex shrink-0 items-center gap-1.5" aria-label={title}>
+                                <span title={title} className={colorClass}>{icon}</span>
+                                {usageCount > 0 && (
+                                  <span title={`${usageCount} ครั้ง`} className="flex items-center gap-0.5 text-[10px] font-bold text-slate-500">
+                                    <History size={12} />
+                                    {usageCount}
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          };
                           
                           if (isLoadingProjectHistory) {
                             return (
@@ -1572,7 +1592,7 @@ export default function WeeklyVisitPlanner({
                                 >
                                   <span className="flex items-center justify-between gap-2">
                                     <span>{p.project_name}</span>
-                                    <span className="text-amber-500">★</span>
+                                    {projectRecommendationIcons(p)}
                                   </span>
                                 </div>
                               ))}
@@ -1586,7 +1606,10 @@ export default function WeeklyVisitPlanner({
                                   onClick={() => handleSelectProject(p.id, prioritizedProjects)}
                                   className={`p-3 text-sm cursor-pointer hover:bg-indigo-50 border-b border-slate-50 last:border-0 ${selectedProject === p.id ? 'bg-indigo-50 font-bold text-indigo-700' : 'text-slate-700'}`}
                                 >
-                                  {p.project_name}
+                                  <span className="flex items-center justify-between gap-2">
+                                    <span>{p.project_name}</span>
+                                    {projectRecommendationIcons(p)}
+                                  </span>
                                 </div>
                               ))}
                               
