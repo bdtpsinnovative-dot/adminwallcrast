@@ -1483,16 +1483,43 @@ export default function WeeklyVisitPlanner({
                         {(() => {
                           const searchLower = projectSearch.toLowerCase();
                           const pipelineCompany = pipelineData.find(item => item.company.id === selectedCompany);
+                          const normalizedProjectName = (project: any) => String(project?.project_name || '')
+                            .trim()
+                            .replace(/\s+/g, ' ');
+                          const isSelectableProject = (project: any) => {
+                            const name = normalizedProjectName(project);
+                            return name.length > 0 && name !== '-' && name !== 'ไม่ระบุโครงการ' && name !== 'ไม่มีการระบุโครงการ';
+                          };
+                          const uniqueProjectsByName = (projectList: any[]) => {
+                            const names = new Set<string>();
+                            return projectList.filter(project => {
+                              const key = normalizedProjectName(project).toLowerCase();
+                              if (names.has(key)) return false;
+                              names.add(key);
+                              return true;
+                            });
+                          };
                           const prioritizedMap = new Map<string, any>();
                           companyProjectHistory.forEach(project => prioritizedMap.set(project.id, project));
                           (pipelineCompany?.projects || []).forEach((project: any) => {
                             if (!prioritizedMap.has(project.id)) prioritizedMap.set(project.id, project);
                           });
-                          const prioritizedProjects = Array.from(prioritizedMap.values())
-                            .filter(project => project.project_name.toLowerCase().includes(searchLower));
+                          const prioritizedProjects = uniqueProjectsByName(
+                            Array.from(prioritizedMap.values()).filter(project =>
+                              isSelectableProject(project) && normalizedProjectName(project).toLowerCase().includes(searchLower),
+                            ),
+                          );
                           const myProjects = prioritizedProjects.filter(project => project.is_mine === true);
                           const companyProjects = prioritizedProjects.filter(project => project.is_mine !== true);
-                          const otherProjs = projects.filter(p => !pipelineProjIds.has(p.id) && p.project_name.toLowerCase().includes(searchLower));
+                          const prioritizedNames = new Set(prioritizedProjects.map(project => normalizedProjectName(project).toLowerCase()));
+                          const otherProjs = uniqueProjectsByName(
+                            projects.filter(project =>
+                              !pipelineProjIds.has(project.id) &&
+                              !prioritizedNames.has(normalizedProjectName(project).toLowerCase()) &&
+                              isSelectableProject(project) &&
+                              normalizedProjectName(project).toLowerCase().includes(searchLower),
+                            ),
+                          );
                           
                           if (isLoadingProjectHistory) {
                             return (
