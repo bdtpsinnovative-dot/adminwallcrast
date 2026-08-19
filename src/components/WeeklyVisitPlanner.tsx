@@ -288,11 +288,9 @@ export default function WeeklyVisitPlanner({
       if (!response.ok) throw new Error(result.error || 'โหลด Pipeline ไม่สำเร็จ');
 
       const pipeline = Array.isArray(result) ? result : result.pipeline || [];
-      setPipelineData(
-        pipeline
-          .filter((item: any) => item?.company && item.is_mine === true)
-          .sort((a: any, b: any) => (b.count || 0) - (a.count || 0)),
-      );
+      // API เรียงลำดับตาม New Record แล้ว (ของตนเอง -> ทีม -> ทั่วระบบ)
+      // จึงต้องเก็บทั้งรายการไว้ เพื่อให้พนักงานใหม่มีบริษัทแนะนำด้วย.
+      setPipelineData(pipeline.filter((item: any) => item?.company));
     } catch (error) {
       console.error('โหลด Pipeline ไม่สำเร็จ:', error);
       setPipelineData([]);
@@ -1404,7 +1402,7 @@ export default function WeeklyVisitPlanner({
                           return (
                             <>
                               {filteredPipeline.length > 0 && (
-                                <div className="px-3 py-2 bg-slate-50 font-bold text-xs text-slate-500">บริษัทที่ดูแลอยู่</div>
+                                <div className="px-3 py-2 bg-slate-50 font-bold text-xs text-slate-500">บริษัทแนะนำตามประวัติ</div>
                               )}
                               {filteredPipeline.map(p => (
                                 <div 
@@ -1417,8 +1415,13 @@ export default function WeeklyVisitPlanner({
                                   className={`p-3 text-sm cursor-pointer hover:bg-indigo-50 border-b border-slate-50 last:border-0 flex justify-between items-center ${selectedCompany === p.company.id ? 'bg-indigo-50 font-bold text-indigo-700' : 'text-slate-700'}`}
                                 >
                                   <span>{p.company.name}</span>
-                                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                                    {p.projects.length} โครงการ
+                                  <span className="flex items-center gap-1.5">
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${p.is_mine ? 'bg-emerald-50 text-emerald-700' : p.is_team ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-700'}`}>
+                                      {p.is_mine ? 'ของคุณ' : p.is_team ? 'ทีม' : 'แนะนำ'}
+                                    </span>
+                                    <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                                      {p.projects.length} โครงการ
+                                    </span>
                                   </span>
                                 </div>
                               ))}
