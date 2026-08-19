@@ -294,8 +294,8 @@ function EditProjectModal({ isOpen, data, onClose, projectTypes, productCategori
                     className="flex items-center gap-2 border-t border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
                   >
                     <Map size={16} />
-                    {coordinates.latitude.toFixed(6)}, {coordinates.longitude.toFixed(6)}
-                    <span className="ml-auto text-xs">เปิดแผนที่</span>
+                    <span>ตำแหน่งเช็กอิน</span>
+                    <span className="ml-auto text-xs">เปิด Google Maps</span>
                   </a>
                 </div>
               ) : (
