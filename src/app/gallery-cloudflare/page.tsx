@@ -301,6 +301,27 @@ const compressImage = async (file: File): Promise<Blob> => {
     navigator.clipboard.writeText(text).then(() => showToast('📋 คัดลอก URL เรียบร้อยแล้ว!'));
   };
 
+  const copySelectedLinks = () => {
+    if (selectedImages.length === 0) return;
+
+    const selectedUrls = selectedImages
+      .map(name => {
+        const found = images.find(img => img.name === name);
+        return found ? found.url : null;
+      })
+      .filter(Boolean);
+
+    if (selectedUrls.length === 0) return;
+
+    const textToCopy = selectedUrls.join('\n');
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      showToast(`📋 คัดลอก ${selectedUrls.length} ลิงก์เรียบร้อยแล้ว (พร้อมวางลงในชีท)!`);
+    }).catch(err => {
+      console.error(err);
+      alert('คัดลอกไม่สำเร็จ: ' + err.message);
+    });
+  };
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
@@ -340,11 +361,37 @@ const compressImage = async (file: File): Promise<Blob> => {
         </div>
 
         {selectedImages.length > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex justify-between items-center shadow-sm animate-in fade-in slide-in-from-top-4">
-            <div className="text-blue-800 font-medium">
-              เลือกแล้ว {selectedImages.length} รูป
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-wrap justify-between items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-blue-900 font-bold">
+                เลือกแล้ว {selectedImages.length} รูป
+              </span>
+              <button 
+                onClick={() => {
+                  const allVisibleNames = images.map(img => img.name);
+                  const isAllSelected = allVisibleNames.every(name => selectedImages.includes(name));
+                  if (isAllSelected) {
+                    setSelectedImages([]);
+                  } else {
+                    setSelectedImages(allVisibleNames);
+                  }
+                }}
+                className="text-xs font-semibold text-blue-800 hover:text-blue-950 bg-blue-200/80 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                {images.length > 0 && images.every(img => selectedImages.includes(img.name)) ? 'ยกเลิกการเลือกทั้งหมด' : 'เลือกทั้งหมดในหน้านี้'}
+              </button>
             </div>
-            <div className="flex gap-3">
+            
+            <div className="flex items-center gap-2 flex-wrap">
+              <button 
+                onClick={copySelectedLinks}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm cursor-pointer"
+                title="คัดลอกทุกลิงก์ที่เลือก นำไปวางใน Google Sheet / Excel จะเรียงแยกบรรทัดให้อัตโนมัติ"
+              >
+                <Copy size={16} />
+                คัดลอก {selectedImages.length} ลิงก์ (วางลงชีท)
+              </button>
+
               <button 
                 onClick={() => setSelectedImages([])}
                 className="px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
