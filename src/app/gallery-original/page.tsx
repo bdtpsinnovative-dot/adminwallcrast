@@ -202,24 +202,27 @@ export default function ImageGalleryOriginalPage() {
     const fileArray = Array.from(files);
     
     // ถ้าตั้งใจอัปโหลดทับไฟล์เดิม (Replace) จะบังคับให้เลือกได้แค่ 1 รูปเท่านั้น
-    if (replaceFileName && fileArray.length > 1) {
-       alert('การแทนที่รูปภาพ สามารถเลือกได้เพียง 1 ไฟล์เท่านั้น');
+    if (replaceFileName) {
+       if (fileArray.length > 1) alert('การแทนที่รูปภาพ สามารถเลือกได้เพียง 1 ไฟล์เท่านั้น');
        setSelectedFiles([fileArray[0]]);
        const url = URL.createObjectURL(fileArray[0]);
-       setPreviewUrls([url]);
+       setPreviewUrls((previousUrls) => {
+         previousUrls.forEach((previousUrl) => URL.revokeObjectURL(previousUrl));
+         return [url];
+       });
        setUploadStatus('preview');
        return;
     }
 
-    setSelectedFiles(fileArray);
+    setSelectedFiles((previousFiles) => [...previousFiles, ...fileArray]);
     const urls = fileArray.map(f => URL.createObjectURL(f));
-    setPreviewUrls(urls);
+    setPreviewUrls((previousUrls) => [...previousUrls, ...urls]);
     setUploadStatus('preview');
   }, [replaceFileName]);
 
   // รับรูปที่ผู้ใช้คัดลอกมา (เช่น screenshot) เมื่อเปิดหน้าต่างอัปโหลดอยู่
   useEffect(() => {
-    if (!isModalOpen || uploadStatus !== 'idle') return;
+    if (!isModalOpen || uploadStatus === 'compressing' || uploadStatus === 'uploading') return;
 
     const handlePaste = (event: ClipboardEvent) => {
       const clipboardData = event.clipboardData;
@@ -647,7 +650,7 @@ export default function ImageGalleryOriginalPage() {
                     className="hidden" 
                   />
                   <ImageIcon size={48} className="mx-auto text-slate-300 mb-3" />
-                  <p className="font-medium text-slate-700">คลิก ลากไฟล์ หรือกด Ctrl+V เพื่อวางรูปที่นี่ (รองรับหลายไฟล์)</p>
+                  <p className="font-medium text-slate-700">คลิก ลากไฟล์ หรือกด Ctrl+V เพื่อวางรูปที่นี่ (วางเพิ่มได้หลายครั้ง)</p>
                   <p className="text-xs text-slate-500 mt-1">(รูปจะรักษาสัดส่วนเดิมไว้)</p>
                 </div>
               )}
