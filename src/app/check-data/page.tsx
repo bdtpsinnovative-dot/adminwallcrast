@@ -1,11 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import {
-  Search, RefreshCw, Edit3, Save, X, Trash2, RotateCcw, FileSpreadsheet, Calendar, AlertTriangle, Filter, Download
+  Search, RefreshCw, Edit3, Save, X, Trash2, RotateCcw, FileSpreadsheet, Calendar, AlertTriangle, Filter, Download, Building2, ShieldAlert, CheckSquare
 } from "lucide-react";
 import * as XLSX from "xlsx";
+
+// --- ฟังก์ชันตรวจจับข้อมูลสุ่มเสี่ยง / ข้อมูลเทสที่อาจลืมลบ ---
+const isSuspiciousItem = (item: any) => {
+  const pName = String(item.project_name || '').trim().toLowerCase();
+  const cName = String(item.customer_name || '').trim().toLowerCase();
+  const testKeywords = ['test', 'เทส', 'ทดสอบ', 'mock', 'dummy', 'sample', 'asdf', '1234', 'demo'];
+  
+  if (testKeywords.some(kw => pName.includes(kw))) return true;
+  if (testKeywords.some(kw => cName.includes(kw))) return true;
+  if (pName === '-' || pName === '' || pName === '--') return true;
+  return false;
+};
 
 // --- ฟังก์ชันจัดกลุ่มสีสำหรับข้อมูลที่ซ้ำกัน ---
 const getDuplicateGroupColor = (row: any, allRows: any[]) => {
@@ -66,6 +78,8 @@ export default function DetailedDataCheckerPage() {
 
   // --- State สำหรับระบบ Filter หลัก ---
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchProjectName, setSearchProjectName] = useState(""); // ✨ ค้นหาชื่อโปรเจกต์โดยเฉพาะ
+  const [showSuspiciousOnly, setShowSuspiciousOnly] = useState(false); // 🚨 กรองเฉพาะข้อมูลเทส/สุ่มเสี่ยง
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [filterSource, setFilterSource] = useState("ALL");
   const [startDate, setStartDate] = useState("");
@@ -86,6 +100,21 @@ export default function DetailedDataCheckerPage() {
 
   // --- State สำหรับดูข้อมูลซ้ำ ---
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
+
+  // --- รายชื่อโปรเจกต์ทั้งหมดที่มีในระบบสำหรับ Datalist Autocomplete ---
+  const uniqueProjectNames = useMemo(() => {
+    const set = new Set<string>();
+    allData.forEach(d => {
+      const name = String(d.project_name || '').trim();
+      if (name && name !== '-') set.add(name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [allData]);
+
+  // --- รายการที่สุ่มเสี่ยง / เทสทั้งหมด ---
+  const suspiciousItems = useMemo(() => {
+    return allData.filter(d => isSuspiciousItem(d));
+  }, [allData]);
 
   // --- 1. ฟังก์ชันดึงข้อมูล ---
   const fetchDetailedData = async () => {
@@ -257,6 +286,19 @@ export default function DetailedDataCheckerPage() {
         item.id.toLowerCase().includes(lowerSearch)
       );
     }
+
+    // 🏢 ค้นหาชื่อโปรเจกต์โดยเฉพาะ
+    if (searchProjectName.trim() !== "") {
+      const lowerProj = searchProjectName.toLowerCase().trim();
+      result = result.filter(item => 
+        String(item.project_name || '').toLowerCase().includes(lowerProj)
+      );
+    }
+
+    // 🚨 กรองเฉพาะข้อมูลเทส / ข้อมูลสุ่มเสี่ยง
+    if (showSuspiciousOnly) {
+      result = result.filter(item => isSuspiciousItem(item));
+    }
     
     if (startDate) {
       const startTime = new Date(startDate).getTime();
@@ -292,7 +334,13 @@ export default function DetailedDataCheckerPage() {
     
     setFilteredData(result);
     setDisplayLimit(50);
-  }, [searchTerm, filterStatus, filterSource, filterSales, filterProjectType, filterProductCategory, minArea, maxArea, startDate, endDate, allData, showDuplicatesOnly]);
+  }, [searchTerm, searchProjectName, showSuspiciousOnly, filterStatus, filterSource, filterSales, filterProjectType, filterProductCategory, minArea, maxArea, startDate, endDate, allData, showDuplicatesOnly]);
+
+  // --- ฟังก์ชันเลือกติ๊กถูกเฉพาะข้อมูลสุ่มเสี่ยง/เทสทั้งหมด ---
+  const handleSelectAllSuspicious = () => {
+    const suspIds = filteredData.filter(d => isSuspiciousItem(d)).map(d => d.id);
+    setSelectedRows(suspIds);
+  };
 
   // --- 3. ฟังก์ชันระบบจัดการ Checkbox ---
   const dataToDisplay = filteredData.slice(0, displayLimit);
@@ -655,6 +703,62 @@ export default function DetailedDataCheckerPage() {
           {/* แถบ Filter */}
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
             <Filter size={14} className="text-gray-400 mr-1" />
+
+            {/* 🏢 ค้นหาชื่อโปรเจกต์โดยเฉพาะ */}
+            <div className="relative flex items-center">
+              <Building2 size={13} className="absolute left-2.5 text-indigo-500 pointer-events-none" />
+              <input
+                list="project-names-datalist"
+                type="text"
+                placeholder="ค้นหาชื่อโปรเจกต์..."
+                className="w-44 md:w-56 border border-indigo-200 bg-indigo-50/50 rounded-md pl-8 pr-7 py-1 text-xs text-indigo-950 font-medium placeholder-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:bg-white outline-none shadow-sm transition"
+                value={searchProjectName}
+                onChange={(e) => setSearchProjectName(e.target.value)}
+                disabled={isEditMode}
+              />
+              {searchProjectName && (
+                <button
+                  onClick={() => setSearchProjectName("")}
+                  className="absolute right-2 text-indigo-400 hover:text-indigo-700"
+                  title="ล้างคำค้นหาโปรเจกต์"
+                >
+                  <X size={12} />
+                </button>
+              )}
+              <datalist id="project-names-datalist">
+                {uniqueProjectNames.map((name, i) => (
+                  <option key={i} value={name} />
+                ))}
+              </datalist>
+            </div>
+
+            {/* 🚨 ปุ่มสแกน / กรองข้อมูลเทสที่สุ่มเสี่ยง */}
+            {!isEditMode && (
+              <button
+                onClick={() => setShowSuspiciousOnly(!showSuspiciousOnly)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold border shadow-sm transition ${
+                  showSuspiciousOnly
+                    ? "bg-rose-600 border-rose-700 text-white shadow-rose-200 animate-pulse"
+                    : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100"
+                }`}
+                title="กรองเฉพาะโปรเจกต์ที่น่าจะเป็นข้อมูลเทสหรือลืมลบ (เช่น ชื่อ 'test', 'เทส', '-')"
+              >
+                <ShieldAlert size={14} className={showSuspiciousOnly ? "text-white" : "text-rose-600"} />
+                <span>{showSuspiciousOnly ? "แสดงทั้งหมด" : `🚨 กรองข้อมูลเทส (${suspiciousItems.length})`}</span>
+              </button>
+            )}
+
+            {/* ปุ่มลัดเลือกติ๊กถูกเฉพาะข้อมูลเทส เพื่อเตรียมกดลบ */}
+            {!isEditMode && showSuspiciousOnly && filteredData.length > 0 && (
+              <button
+                onClick={handleSelectAllSuspicious}
+                className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded-md text-xs font-bold shadow transition"
+                title="เลือกติ๊กถูกทุกแถวเพื่อลบพร้อมกัน"
+              >
+                <CheckSquare size={13} />
+                <span>เลือกแถวเทสทั้งหมด ({filteredData.length})</span>
+              </button>
+            )}
             
             <select className="border rounded-md px-2 py-1 text-xs outline-none bg-blue-50 text-blue-800" value={filterSales} onChange={(e) => setFilterSales(e.target.value)} disabled={isEditMode}>
               <option value="ALL">เซลส์: ทั้งหมด</option>
@@ -747,7 +851,18 @@ export default function DetailedDataCheckerPage() {
                       {row.data_source === "IMPORT" ? <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] w-fit mx-auto">📁 นำเข้าไฟล์</span> : <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] w-fit mx-auto">📱 ผ่านแอปฯ</span>}
                     </td>
 
-                    <td className="px-3 py-1.5 border-r font-medium min-w-[200px] max-w-[250px]">{renderEditableCell(row, "project_name")}</td>
+                    <td className="px-3 py-1.5 border-r font-medium min-w-[200px] max-w-[280px]">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex-1 min-w-0">
+                          {renderEditableCell(row, "project_name")}
+                        </div>
+                        {isSuspiciousItem(row) && !isEditMode && (
+                          <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-300 shadow-xs" title="รายการนี้มีชื่อที่สุ่มเสี่ยงเป็นข้อมูลเทส">
+                            ⚠️ เทส
+                          </span>
+                        )}
+                      </div>
+                    </td>
 <td className="px-3 py-1.5 border-r text-right min-w-[80px]">{renderEditableCell(row, "area_sqm", "number")}</td>
 <td className="px-3 py-1.5 border-r min-w-[150px] max-w-[200px]">{renderEditableCell(row, "customer_name")}</td>
 <td className="px-3 py-1.5 border-r min-w-[120px] max-w-[150px]">{renderEditableCell(row, "phone")}</td>

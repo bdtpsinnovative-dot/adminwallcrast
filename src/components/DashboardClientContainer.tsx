@@ -352,7 +352,16 @@ export default function DashboardClientContainer({
       name: string;
       count: number;
       salesBreakdown: Record<string, number>;
-      uniqueProjects: Map<string, { date: Date; salesBreakdown: Record<string, number> }>;
+      uniqueProjects: Map<string, {
+        firstDate: Date;
+        latestDate: Date;
+        salesMap: Map<string, {
+          salesName: string;
+          latestDate: Date;
+          dates: Date[];
+          count: number;
+        }>;
+      }>;
       totalSqm: number;
     }> = {};
     allActiveProjects.forEach(proj => {
@@ -374,16 +383,34 @@ export default function DashboardClientContainer({
         
         const projName = proj.project_name?.trim() || '';
         if (projName && projName !== 'ไม่มีการระบุโครงการ' && projName !== 'ไม่ระบุโครงการ') {
-          const pDate = new Date(proj.created_at || order?.created_at || new Date());
-          const existingProject = stats[cName].uniqueProjects.get(projName);
+          const rawCapturedAt = order?.audit_log?.location?.captured_at;
+          const pDate = new Date(rawCapturedAt || proj.created_at || order?.created_at || new Date());
+          
+          let existingProject = stats[cName].uniqueProjects.get(projName);
           if (!existingProject) {
-            stats[cName].uniqueProjects.set(projName, {
-              date: pDate,
-              salesBreakdown: { [salesName]: 1 },
+            existingProject = {
+              firstDate: pDate,
+              latestDate: pDate,
+              salesMap: new Map(),
+            };
+            stats[cName].uniqueProjects.set(projName, existingProject);
+          }
+          
+          if (pDate < existingProject.firstDate) existingProject.firstDate = pDate;
+          if (pDate > existingProject.latestDate) existingProject.latestDate = pDate;
+          
+          const salesEntry = existingProject.salesMap.get(salesName);
+          if (!salesEntry) {
+            existingProject.salesMap.set(salesName, {
+              salesName,
+              latestDate: pDate,
+              dates: [pDate],
+              count: 1,
             });
           } else {
-            if (pDate < existingProject.date) existingProject.date = pDate;
-            existingProject.salesBreakdown[salesName] = (existingProject.salesBreakdown[salesName] || 0) + 1;
+            salesEntry.count += 1;
+            salesEntry.dates.push(pDate);
+            if (pDate > salesEntry.latestDate) salesEntry.latestDate = pDate;
           }
         }
 
@@ -916,13 +943,13 @@ export default function DashboardClientContainer({
                         </td>
                         <td className="px-5 py-3.5 text-left align-middle">
                           {comp.uniqueProjects.size > 0 ? (
-                            <div className="flex flex-col gap-1.5 py-0.5">
+                            <div className="flex flex-col gap-2.5 py-0.5">
                               {Array.from(comp.uniqueProjects.entries()).map(([projName, projectInfo], i) => (
-                                <div key={i} className="flex items-center gap-2 text-xs">
+                                <div key={i} className="flex min-h-[26px] items-center gap-2 text-xs">
                                   <Folder size={13} className="shrink-0 text-indigo-500" strokeWidth={2.25} />
                                   <span className="font-semibold text-slate-700">{projName}</span>
                                   <span className="text-slate-400 text-[11px]">
-                                    ({projectInfo.date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })})
+                                    ({projectInfo.firstDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })})
                                   </span>
                                 </div>
                               ))}
@@ -933,18 +960,41 @@ export default function DashboardClientContainer({
                         </td>
                         <td className="px-5 py-3.5 text-left align-middle">
                           {comp.uniqueProjects.size > 0 ? (
-                            <div className="flex flex-col gap-1.5 py-0.5">
-                              {Array.from(comp.uniqueProjects.entries()).map(([projName, projectInfo]) => (
-                                <div key={projName} className="flex min-h-[18px] items-center gap-2 text-xs">
-                                  <UserCheck size={13} className="shrink-0 text-emerald-500" strokeWidth={2.25} />
-                                  <span className="font-semibold text-slate-700">
-                                    {Object.entries(projectInfo.salesBreakdown)
-                                      .sort(([, countA], [, countB]) => countB - countA)
-                                      .map(([salesName]) => salesName)
-                                      .join(', ')}
-                                  </span>
-                                </div>
-                              ))}
+                            <div className="flex flex-col gap-2.5 py-0.5">
+                              {Array.from(comp.uniqueProjects.entries()).map(([projName, projectInfo], i) => {
+                                const salesList = Array.from(projectInfo.salesMap.values()).sort(
+                                  (a, b) => b.latestDate.getTime() - a.latestDate.getTime()
+                                );
+
+                                const formatVisitDateTime = (d: Date) => {
+                                  const dStr = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+                                  const tStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                                  return `${dStr} ${tStr} น.`;
+                                };
+
+                                return (
+                                  <div key={i} className="flex flex-col gap-1.5 min-h-[26px] justify-center">
+                                    {salesList.map((sales, sIdx) => {
+                                      const sortedDates = [...sales.dates].sort((a, b) => a.getTime() - b.getTime());
+                                      const formattedTimeStr = sortedDates.length <= 2
+                                        ? sortedDates.map(formatVisitDateTime).join(', ')
+                                        : `ล่าสุด ${formatVisitDateTime(sales.latestDate)} (${sales.count} ครั้ง)`;
+
+                                      const allTooltip = sortedDates.map(formatVisitDateTime).join('\n');
+
+                                      return (
+                                        <div key={sIdx} className="flex items-center gap-1.5 text-xs" title={allTooltip}>
+                                          <UserCheck size={13} className="shrink-0 text-emerald-500" strokeWidth={2.25} />
+                                          <span className="font-semibold text-slate-800">{sales.salesName}</span>
+                                          <span className="text-[11px] text-slate-500 font-medium">
+                                            ({formattedTimeStr})
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })}
                             </div>
                           ) : (
                             <span className="text-slate-300 text-xs italic">-</span>

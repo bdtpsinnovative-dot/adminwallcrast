@@ -1,7 +1,7 @@
 // src/app/gallery-original/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { 
   ImagePlus, UploadCloud, Copy, X, CheckCircle2, 
@@ -196,7 +196,7 @@ export default function ImageGalleryOriginalPage() {
     setIsModalOpen(true);
   };
 
-  const onFilesSelect = (files: FileList | File[]) => {
+  const onFilesSelect = useCallback((files: FileList | File[]) => {
     if (!files || files.length === 0) return;
     
     const fileArray = Array.from(files);
@@ -215,7 +215,34 @@ export default function ImageGalleryOriginalPage() {
     const urls = fileArray.map(f => URL.createObjectURL(f));
     setPreviewUrls(urls);
     setUploadStatus('preview');
-  };
+  }, [replaceFileName]);
+
+  // รับรูปที่ผู้ใช้คัดลอกมา (เช่น screenshot) เมื่อเปิดหน้าต่างอัปโหลดอยู่
+  useEffect(() => {
+    if (!isModalOpen || uploadStatus !== 'idle') return;
+
+    const handlePaste = (event: ClipboardEvent) => {
+      const clipboardData = event.clipboardData;
+      if (!clipboardData) return;
+
+      const imageFiles = Array.from(clipboardData.items)
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null);
+
+      const filesToUpload = imageFiles.length > 0
+        ? imageFiles
+        : Array.from(clipboardData.files).filter((file) => file.type.startsWith('image/'));
+
+      if (filesToUpload.length === 0) return;
+
+      event.preventDefault();
+      onFilesSelect(filesToUpload);
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isModalOpen, onFilesSelect, uploadStatus]);
 
   // บีบอัดรูปและแปลงเป็น WebP โดยคุมขนาดไม่ให้เกิน 1MB (รักษาสัดส่วนและความกว้าง/ยาวเดิม 100%)
   const convertToWebP = async (file: File): Promise<Blob> => {
@@ -620,7 +647,7 @@ export default function ImageGalleryOriginalPage() {
                     className="hidden" 
                   />
                   <ImageIcon size={48} className="mx-auto text-slate-300 mb-3" />
-                  <p className="font-medium text-slate-700">คลิก หรือ ลากไฟล์มาวางที่นี่ (รองรับหลายไฟล์)</p>
+                  <p className="font-medium text-slate-700">คลิก ลากไฟล์ หรือกด Ctrl+V เพื่อวางรูปที่นี่ (รองรับหลายไฟล์)</p>
                   <p className="text-xs text-slate-500 mt-1">(รูปจะรักษาสัดส่วนเดิมไว้)</p>
                 </div>
               )}
